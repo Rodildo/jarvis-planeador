@@ -41,7 +41,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     setState(() => _isLoading = true);
     try {
       final response = await http.post(
-        Uri.parse('http://2.25.120.253:3000/api/onboarding/question'),
+        Uri.parse('https://app-jarvisplanner.hzedxy.easypanel.host/api/onboarding/question'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'previousQA': _messages}),
       );
@@ -80,7 +80,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     });
     try {
       final response = await http.post(
-        Uri.parse('http://2.25.120.253:3000/api/assessment'),
+        Uri.parse('https://app-jarvisplanner.hzedxy.easypanel.host/api/assessment'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'userId': 'default_user', 'answers': jsonEncode(_messages)}),
       );
@@ -101,7 +101,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       final audioData = await http.get(Uri.parse(path));
       final bytes = audioData.bodyBytes;
       
-      var request = http.MultipartRequest('POST', Uri.parse('http://2.25.120.253:3000/api/transcribe'));
+      var request = http.MultipartRequest('POST', Uri.parse('https://app-jarvisplanner.hzedxy.easypanel.host/api/transcribe'));
       request.files.add(http.MultipartFile.fromBytes('audio', bytes, filename: 'audio.webm'));
       
       var response = await request.send();

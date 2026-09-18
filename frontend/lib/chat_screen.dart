@@ -46,7 +46,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final audioData = await http.get(Uri.parse(path));
       final bytes = audioData.bodyBytes;
       
-      var request = http.MultipartRequest('POST', Uri.parse('http://2.25.120.253:3000/api/transcribe'));
+      var request = http.MultipartRequest('POST', Uri.parse('https://app-jarvisplanner.hzedxy.easypanel.host/api/transcribe'));
       request.files.add(http.MultipartFile.fromBytes('audio', bytes, filename: 'audio.webm'));
       
       var response = await request.send();
@@ -87,7 +87,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://2.25.120.253:3000/api/briefing'),
+        Uri.parse('https://app-jarvisplanner.hzedxy.easypanel.host/api/briefing'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'userId': 'default_user',
@@ -114,7 +114,7 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() => _isLoading = true);
     try {
       await http.post(
-        Uri.parse('http://2.25.120.253:3000/api/daily-actions'),
+        Uri.parse('https://app-jarvisplanner.hzedxy.easypanel.host/api/daily-actions'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'userId': 'default_user',
@@ -146,7 +146,7 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() => _isLoading = true);
     try {
       final response = await http.post(
-        Uri.parse('http://2.25.120.253:3000/api/midday'),
+        Uri.parse('https://app-jarvisplanner.hzedxy.easypanel.host/api/midday'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'userId': 'default_user',
