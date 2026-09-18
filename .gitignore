@@ -1,0 +1,12 @@
+node_modules/
+.env
+build/
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+frontend/build/
+frontend/.dart_tool/
+backend/node_modules/
+backend/dist/
+backend/jarvis.sqlite

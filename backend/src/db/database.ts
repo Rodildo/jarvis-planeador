@@ -31,7 +31,10 @@ export const initDB = async (dbPath: string = './jarvis.sqlite'): Promise<void> 
                     CREATE TABLE IF NOT EXISTS daily_logs (
                         user_id TEXT,
                         date TEXT,
-                        energy_level INTEGER,
+                        energy_morning INTEGER,
+                        energy_midday INTEGER,
+                        morning_time DATETIME,
+                        actions_chosen TEXT,
                         PRIMARY KEY (user_id, date)
                     )
                 `, (err) => {
@@ -63,9 +66,9 @@ export const getBlueprint = async (userId: string): Promise<string | null> => {
     });
 };
 
-export const saveEnergyLevel = async (userId: string, date: string, level: number): Promise<void> => {
+export const saveMorningLog = async (userId: string, date: string, level: number): Promise<void> => {
     return new Promise((resolve, reject) => {
-        const stmt = db.prepare(`INSERT OR REPLACE INTO daily_logs (user_id, date, energy_level) VALUES (?, ?, ?)`);
+        const stmt = db.prepare(`INSERT INTO daily_logs (user_id, date, energy_morning, morning_time) VALUES (?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(user_id, date) DO UPDATE SET energy_morning = excluded.energy_morning, morning_time = excluded.morning_time`);
         stmt.run(userId, date, level, (err: Error | null) => {
             stmt.finalize();
             if (err) reject(err);
@@ -74,11 +77,33 @@ export const saveEnergyLevel = async (userId: string, date: string, level: numbe
     });
 };
 
-export const getEnergyLevel = async (userId: string, date: string): Promise<number | null> => {
+export const saveMiddayLog = async (userId: string, date: string, level: number): Promise<void> => {
     return new Promise((resolve, reject) => {
-        db.get(`SELECT energy_level FROM daily_logs WHERE user_id = ? AND date = ?`, [userId, date], (err, row: any) => {
+        const stmt = db.prepare(`UPDATE daily_logs SET energy_midday = ? WHERE user_id = ? AND date = ?`);
+        stmt.run(level, userId, date, (err: Error | null) => {
+            stmt.finalize();
             if (err) reject(err);
-            else resolve(row ? row.energy_level : null);
+            else resolve();
+        });
+    });
+};
+
+export const saveDailyActions = async (userId: string, date: string, actions: string[]): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        const stmt = db.prepare(`UPDATE daily_logs SET actions_chosen = ? WHERE user_id = ? AND date = ?`);
+        stmt.run(JSON.stringify(actions), userId, date, (err: Error | null) => {
+            stmt.finalize();
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+};
+
+export const getDailyLog = async (userId: string, date: string): Promise<any | null> => {
+    return new Promise((resolve, reject) => {
+        db.get(`SELECT * FROM daily_logs WHERE user_id = ? AND date = ?`, [userId, date], (err, row: any) => {
+            if (err) reject(err);
+            else resolve(row || null);
         });
     });
 };
