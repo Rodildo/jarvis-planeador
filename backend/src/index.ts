@@ -15,7 +15,7 @@ app.use('/api', apiRouter);
 
 const startServer = async () => {
     try {
-        await initDB();
+        await initDB(process.env.DB_PATH || './data/jarvis.sqlite');
         app.listen(port, () => {
             console.log(`Jarvis Backend running on port ${port}`);
         });
