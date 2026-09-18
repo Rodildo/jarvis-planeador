@@ -1,13 +1,14 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const getAI = () => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
-    return new GoogleGenAI({ apiKey });
+    return new GoogleGenerativeAI(apiKey);
 };
 
 export const generateBlueprint = async (answers: any): Promise<any> => {
     const ai = getAI();
+    const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
     const prompt = `
     Act as an expert life planner and psychologist. Based on the following user assessment, create a comprehensive life blueprint.
     Ensure the output is strictly valid JSON format.
@@ -21,23 +22,36 @@ export const generateBlueprint = async (answers: any): Promise<any> => {
     }
     `;
 
-    const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
-        contents: prompt,
-        config: {
-            responseMimeType: "application/json",
-        }
-    });
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
 
-    if (!response.text) {
+    if (!text) {
         throw new Error("Failed to generate blueprint from Gemini");
     }
 
-    return JSON.parse(response.text);
+    try {
+        // Strip markdown if present
+        let jsonStr = text;
+        if (jsonStr.startsWith('```json')) {
+            jsonStr = jsonStr.substring(7);
+        }
+        if (jsonStr.startsWith('```')) {
+            jsonStr = jsonStr.substring(3);
+        }
+        if (jsonStr.endsWith('```')) {
+            jsonStr = jsonStr.substring(0, jsonStr.length - 3);
+        }
+        return JSON.parse(jsonStr.trim());
+    } catch (err) {
+        console.error("Failed to parse JSON:", text);
+        throw err;
+    }
 };
 
 export const generateMorningOptions = async (blueprint: any, energyLevel: number): Promise<any> => {
     const ai = getAI();
+    const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
     let modeContext = "";
     
     if (energyLevel <= 2) {
@@ -73,18 +87,24 @@ export const generateMorningOptions = async (blueprint: any, energyLevel: number
     Extrae al menos 2 metas del blueprint y dales 3 opciones de intensidad a cada una.
     `;
 
-    const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
-        contents: prompt,
-        config: { responseMimeType: "application/json" }
-    });
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
 
-    if (!response.text) throw new Error("Failed to generate morning options");
-    return JSON.parse(response.text);
+    if (!text) throw new Error("Failed to generate morning options");
+    try {
+        let jsonStr = text;
+        if (jsonStr.startsWith('```json')) jsonStr = jsonStr.substring(7);
+        if (jsonStr.startsWith('```')) jsonStr = jsonStr.substring(3);
+        if (jsonStr.endsWith('```')) jsonStr = jsonStr.substring(0, jsonStr.length - 3);
+        return JSON.parse(jsonStr.trim());
+    } catch (err) {
+        throw new Error("Failed to parse morning options JSON");
+    }
 };
 
 export const generateMidDayAdjustment = async (blueprint: any, morningEnergy: number, middayEnergy: number, chosenActions: any): Promise<string> => {
     const ai = getAI();
+    const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
     const prompt = `
     Eres Jarvis. 
     Esta mañana el usuario tenía energía ${morningEnergy}/5 y se propuso hacer esto: ${JSON.stringify(chosenActions)}.
@@ -95,15 +115,13 @@ export const generateMidDayAdjustment = async (blueprint: any, morningEnergy: nu
     Si la energía subió o se mantiene bien, dale un pequeño empujón motivacional pero recordándole cuidar su ciclo de sueño.
     Devuelve SOLO el texto del mensaje directamente, como si se lo dijeras en el chat.
     `;
-    const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
-        contents: prompt,
-    });
-    return response.text || "Aquí estoy para lo que necesites esta tarde.";
+    const result = await model.generateContent(prompt);
+    return result.response.text() || "Aquí estoy para lo que necesites esta tarde.";
 };
 
 export const generateNextOnboardingQuestion = async (previousQA: any[]): Promise<string> => {
     const ai = getAI();
+    const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
     const prompt = `
     Eres Jarvis, un terapeuta y estratega de vida altamente inteligente. Estamos en la entrevista inicial (onboarding) del usuario para construir su "Life Blueprint".
     Historial de la conversación hasta ahora: ${JSON.stringify(previousQA)}
@@ -111,26 +129,25 @@ export const generateNextOnboardingQuestion = async (previousQA: any[]): Promise
     Basado en este historial, genera UNA sola pregunta profunda y empática para continuar perfilando sus metas de vida, miedos, hábitos y rutinas ideales.
     No hagas una lista de preguntas. Solo haz la siguiente mejor pregunta, natural y conversacional. No añadas saludos, ve directo al punto con empatía.
     `;
-    const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
-        contents: prompt,
-    });
-    return response.text || "¿Qué aspecto de tu rutina diaria te gustaría transformar primero y por qué?";
+    const result = await model.generateContent(prompt);
+    return result.response.text() || "¿Qué aspecto de tu rutina diaria te gustaría transformar primero y por qué?";
 };
 
 export const transcribeAudio = async (base64Audio: string, mimeType: string): Promise<string> => {
     const ai = getAI();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
-        contents: [
-            "Escucha este audio y transcribe exactamente lo que dice el usuario en su nota de voz. No agregues saludos, solo devuelve el texto transcrito. Si no logras entender, devuelve '[Audio ininteligible]'.",
-            {
-                inlineData: {
-                    data: base64Audio,
-                    mimeType: mimeType
-                }
+    const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    
+    const prompt = "Escucha este audio y transcribe exactamente lo que dice el usuario en su nota de voz. No agregues saludos, solo devuelve el texto transcrito. Si no logras entender, devuelve '[Audio ininteligible]'.";
+    
+    const result = await model.generateContent([
+        prompt,
+        {
+            inlineData: {
+                data: base64Audio,
+                mimeType: mimeType
             }
-        ],
-    });
-    return (response.text || "").trim();
+        }
+    ]);
+    
+    return (result.response.text() || "").trim();
 };
