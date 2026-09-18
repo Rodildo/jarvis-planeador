@@ -22,7 +22,7 @@ export const generateBlueprint = async (answers: any): Promise<any> => {
     `;
 
     const response = await ai.models.generateContent({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-3.6-flash',
         contents: prompt,
         config: {
             responseMimeType: "application/json",
@@ -74,7 +74,7 @@ export const generateMorningOptions = async (blueprint: any, energyLevel: number
     `;
 
     const response = await ai.models.generateContent({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-3.6-flash',
         contents: prompt,
         config: { responseMimeType: "application/json" }
     });
@@ -96,7 +96,7 @@ export const generateMidDayAdjustment = async (blueprint: any, morningEnergy: nu
     Devuelve SOLO el texto del mensaje directamente, como si se lo dijeras en el chat.
     `;
     const response = await ai.models.generateContent({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-3.6-flash',
         contents: prompt,
     });
     return response.text || "Aquí estoy para lo que necesites esta tarde.";
@@ -112,7 +112,7 @@ export const generateNextOnboardingQuestion = async (previousQA: any[]): Promise
     No hagas una lista de preguntas. Solo haz la siguiente mejor pregunta, natural y conversacional. No añadas saludos, ve directo al punto con empatía.
     `;
     const response = await ai.models.generateContent({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-3.6-flash',
         contents: prompt,
     });
     return response.text || "¿Qué aspecto de tu rutina diaria te gustaría transformar primero y por qué?";
@@ -121,7 +121,7 @@ export const generateNextOnboardingQuestion = async (previousQA: any[]): Promise
 export const transcribeAudio = async (base64Audio: string, mimeType: string): Promise<string> => {
     const ai = getAI();
     const response = await ai.models.generateContent({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-3.6-flash',
         contents: [
             "Escucha este audio y transcribe exactamente lo que dice el usuario en su nota de voz. No agregues saludos, solo devuelve el texto transcrito. Si no logras entender, devuelve '[Audio ininteligible]'.",
             {
