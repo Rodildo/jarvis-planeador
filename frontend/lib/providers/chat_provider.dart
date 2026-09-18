@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
 import '../core/api_service.dart';
 
 class ChatProvider extends ChangeNotifier {
@@ -101,7 +102,8 @@ class ChatProvider extends ChangeNotifier {
 
   Future<void> startRecording() async {
     if (await _audioRecorder.hasPermission()) {
-      await _audioRecorder.start(const RecordConfig(), path: 'audio.webm');
+      final dir = await getTemporaryDirectory();
+      await _audioRecorder.start(const RecordConfig(), path: '${dir.path}/audio.webm');
       isRecording = true;
       notifyListeners();
     }
