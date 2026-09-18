@@ -1,25 +1,20 @@
-import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'chat_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:record/record.dart';
+import 'providers/onboarding_provider.dart';
 
 class OnboardingScreen extends StatefulWidget {
+  const OnboardingScreen({super.key});
+
   @override
-  _OnboardingScreenState createState() => _OnboardingScreenState();
+  State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  final List<Map<String, String>> _messages = [];
   final TextEditingController _controller = TextEditingController();
-  final _audioRecorder = AudioRecorder();
-  
-  bool _isLoading = false;
-  bool _isRecording = false;
-  int _questionCount = 0;
-  final int _maxQuestions = 5;
 
   @override
   void initState() {
@@ -27,201 +22,174 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _controller.addListener(() {
       setState(() {});
     });
-    _fetchNextQuestion();
   }
 
   @override
   void dispose() {
     _controller.dispose();
-    _audioRecorder.dispose();
     super.dispose();
   }
 
-  Future<void> _fetchNextQuestion() async {
-    setState(() => _isLoading = true);
-    try {
-      final response = await http.post(
-        Uri.parse('https://app-jarvisplanner.hzedxy.easypanel.host/api/onboarding/question'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'previousQA': _messages}),
-      );
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() {
-          _messages.add({'role': 'jarvis', 'text': data['question']});
-        });
-      }
-    } catch (e) {
-      setState(() => _messages.add({'role': 'jarvis', 'text': 'Error: $e'}));
-    } finally {
-      setState(() => _isLoading = false);
+  void _submit(OnboardingProvider provider) async {
+    final text = _controller.text;
+    _controller.clear();
+    final shouldNavigate = await provider.submitAnswer(text);
+    if (shouldNavigate && mounted) {
+      context.go('/chat');
     }
   }
 
-  Future<void> _submitAnswer(String answer) async {
-    if (answer.trim().isEmpty) return;
-    setState(() {
-      _messages.add({'role': 'user', 'text': answer});
-      _controller.clear();
-      _questionCount++;
-    });
-
-    if (_questionCount >= _maxQuestions) {
-      await _finalizeOnboarding();
+  void _handleAudio(OnboardingProvider provider) async {
+    if (provider.isRecording) {
+      final shouldNavigate = await provider.stopRecordingAndSubmit();
+      if (shouldNavigate && mounted) {
+        context.go('/chat');
+      }
     } else {
-      await _fetchNextQuestion();
-    }
-  }
-
-  Future<void> _finalizeOnboarding() async {
-    setState(() {
-      _isLoading = true;
-      _messages.add({'role': 'jarvis', 'text': 'Creando tu Life Blueprint...'});
-    });
-    try {
-      final response = await http.post(
-        Uri.parse('https://app-jarvisplanner.hzedxy.easypanel.host/api/assessment'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'userId': 'default_user', 'answers': jsonEncode(_messages)}),
-      );
-      if (response.statusCode == 200) {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ChatScreen()));
-      }
-    } catch (e) {
-      setState(() {
-        _messages.add({'role': 'jarvis', 'text': 'Error: $e'});
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _sendAudioToBackend(String path) async {
-    setState(() => _isLoading = true);
-    try {
-      final audioData = await http.get(Uri.parse(path));
-      final bytes = audioData.bodyBytes;
-      
-      var request = http.MultipartRequest('POST', Uri.parse('https://app-jarvisplanner.hzedxy.easypanel.host/api/transcribe'));
-      request.files.add(http.MultipartFile.fromBytes('audio', bytes, filename: 'audio.webm'));
-      
-      var response = await request.send();
-      var responseData = await response.stream.bytesToString();
-      
-      if (response.statusCode == 200) {
-        final text = jsonDecode(responseData)['text'];
-        if (text != null && text.isNotEmpty) {
-          _submitAnswer(text);
-        }
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error subiendo audio: $e')));
-    } finally {
-      setState(() => _isLoading = false);
+      await provider.startRecording();
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<OnboardingProvider>();
     bool canShowMic = _controller.text.trim().isEmpty;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D1117),
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text('Construyendo tu Blueprint', style: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 18)),
+        title: Text('Building Blueprint', style: GoogleFonts.outfit(fontWeight: FontWeight.w300, fontSize: 16, letterSpacing: 2)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(20),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final isUser = _messages[index]['role'] == 'user';
-                return Align(
-                  alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 20),
-                    padding: const EdgeInsets.all(16),
-                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-                    decoration: BoxDecoration(
-                      color: isUser ? const Color(0xFF1F6FEB) : const Color(0xFF161B22),
-                      borderRadius: BorderRadius.circular(16),
-                      border: isUser ? null : Border.all(color: const Color(0xFF30363D)),
-                    ),
-                    child: Text(_messages[index]['text']!, style: GoogleFonts.inter(color: Colors.white, fontSize: 15, height: 1.5)),
-                  ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0),
-                );
-              },
-            ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.topLeft,
+            radius: 1.5,
+            colors: [Color(0xFF131B2F), Color(0xFF070B14)],
           ),
-          if (_isLoading)
-            const Padding(padding: EdgeInsets.all(20.0), child: CircularProgressIndicator(color: Color(0xFF1F6FEB))),
-          
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-            decoration: const BoxDecoration(
-              color: Color(0xFF0D1117),
-              border: Border(top: BorderSide(color: Color(0xFF30363D))),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    style: GoogleFonts.inter(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: _isRecording ? 'Grabando...' : 'Respuesta (o mantén presionado el mic)...',
-                      hintStyle: TextStyle(color: _isRecording ? Colors.redAccent : Colors.white.withOpacity(0.5)),
-                      filled: true,
-                      fillColor: const Color(0xFF161B22),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-                    ),
-                    onSubmitted: _submitAnswer,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                GestureDetector(
-                  onLongPressStart: canShowMic ? (_) async {
-                    if (await _audioRecorder.hasPermission()) {
-                      await _audioRecorder.start(const RecordConfig(), path: 'audio.webm');
-                      setState(() => _isRecording = true);
-                    }
-                  } : null,
-                  onLongPressEnd: canShowMic ? (_) async {
-                    if (_isRecording) {
-                      final path = await _audioRecorder.stop();
-                      setState(() => _isRecording = false);
-                      if (path != null) await _sendAudioToBackend(path);
-                    }
-                  } : null,
-                  onTap: () {
-                    if (!canShowMic) {
-                      _submitAnswer(_controller.text);
-                    }
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  itemCount: provider.messages.length,
+                  itemBuilder: (context, index) {
+                    final isUser = provider.messages[index]['role'] == 'user';
+                    return Align(
+                      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 20),
+                        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                              decoration: BoxDecoration(
+                                color: isUser ? const Color(0xFF00E5FF).withOpacity(0.15) : Colors.white.withOpacity(0.05),
+                                border: Border.all(color: isUser ? const Color(0xFF00E5FF).withOpacity(0.3) : Colors.white.withOpacity(0.1)),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                provider.messages[index]['text']!, 
+                                style: GoogleFonts.inter(
+                                  color: isUser ? const Color(0xFF00E5FF) : Colors.white, 
+                                  fontSize: 15, 
+                                  height: 1.5
+                                )
+                              ),
+                            ),
+                          ),
+                        ),
+                      ).animate().fadeIn(duration: 500.ms, curve: Curves.easeOutQuad).slideY(begin: 0.2, end: 0),
+                    );
                   },
+                ),
+              ),
+              
+              if (provider.isLoading)
+                const Padding(
+                  padding: EdgeInsets.all(20.0), 
+                  child: CircularProgressIndicator(color: Color(0xFF00E5FF), strokeWidth: 2)
+                ).animate().fadeIn(),
+              
+              if (provider.errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Text(provider.errorMessage!, style: const TextStyle(color: Colors.redAccent)),
+                ),
+
+              // Bottom Input Area (Glassmorphic)
+              ClipRRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                   child: Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                     decoration: BoxDecoration(
-                      color: _isRecording ? Colors.redAccent : const Color(0xFF00E5FF),
-                      shape: BoxShape.circle,
+                      color: Colors.black.withOpacity(0.4),
+                      border: Border(top: BorderSide(color: Colors.white.withOpacity(0.05))),
                     ),
-                    child: Icon(
-                      canShowMic ? Icons.mic : Icons.send, 
-                      color: _isRecording ? Colors.white : Colors.black,
-                      size: 24
-                    )
-                    .animate(target: _isRecording ? 1 : 0)
-                    .scale(begin: const Offset(1,1), end: const Offset(1.2, 1.2)),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _controller,
+                            style: GoogleFonts.inter(color: Colors.white),
+                            decoration: InputDecoration(
+                              hintText: provider.isRecording ? 'Escuchando...' : 'Escribe tu respuesta...',
+                              hintStyle: TextStyle(color: provider.isRecording ? const Color(0xFFFF007F) : Colors.white.withOpacity(0.3)),
+                              filled: true,
+                              fillColor: Colors.white.withOpacity(0.05),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                            ),
+                            onSubmitted: (_) {
+                              if (!provider.isLoading) _submit(provider);
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        GestureDetector(
+                          onLongPressStart: canShowMic ? (_) => provider.startRecording() : null,
+                          onLongPressEnd: canShowMic ? (_) => _handleAudio(provider) : null,
+                          onTap: () {
+                            if (!canShowMic && !provider.isLoading) {
+                              _submit(provider);
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: provider.isRecording ? const Color(0xFFFF007F) : const Color(0xFF00E5FF).withOpacity(0.1),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: provider.isRecording ? Colors.transparent : const Color(0xFF00E5FF).withOpacity(0.5)),
+                              boxShadow: provider.isRecording 
+                                ? [const BoxShadow(color: Color(0xFFFF007F), blurRadius: 20, spreadRadius: 2)]
+                                : [],
+                            ),
+                            child: Icon(
+                              canShowMic ? Icons.mic : Icons.send, 
+                              color: provider.isRecording ? Colors.white : const Color(0xFF00E5FF),
+                              size: 22
+                            )
+                          ).animate(
+                            onPlay: (controller) => canShowMic && !provider.isRecording ? controller.repeat(reverse: true) : controller.stop(),
+                          ).scale(begin: const Offset(1,1), end: const Offset(1.05, 1.05), duration: 1.seconds, curve: Curves.easeInOut),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

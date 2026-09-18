@@ -1,10 +1,21 @@
 import 'package:flutter/material.dart';
-import 'chat_screen.dart';
-import 'onboarding_screen.dart';
+import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'providers/onboarding_provider.dart';
+import 'providers/chat_provider.dart';
+import 'routes/app_router.dart';
+
 void main() {
-  runApp(const JarvisApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => OnboardingProvider()),
+        ChangeNotifierProvider(create: (_) => ChatProvider()),
+      ],
+      child: const JarvisApp(),
+    ),
+  );
 }
 
 class JarvisApp extends StatelessWidget {
@@ -12,22 +23,23 @@ class JarvisApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'Jarvis',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.cyanAccent,
+          seedColor: const Color(0xFF00E5FF),
           brightness: Brightness.dark,
-          surface: const Color(0xFF0F172A),
+          surface: Colors.transparent,
         ),
+        scaffoldBackgroundColor: const Color(0xFF070B14),
         useMaterial3: true,
         textTheme: GoogleFonts.interTextTheme(Theme.of(context).textTheme).apply(
           bodyColor: Colors.white,
           displayColor: Colors.white,
         ),
       ),
-      home: OnboardingScreen(),
+      routerConfig: appRouter,
     );
   }
 }

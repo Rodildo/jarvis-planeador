@@ -1,0 +1,92 @@
+====================================================================
+BITÁCORA TÉCNICA, REQUERIMIENTOS E HISTORIAL DETALLADO - JARVIS PLANNER
+====================================================================
+Fecha de actualización: 18 de Septiembre 2026
+Estado del Proyecto: Fase de Despliegue de Frontend (Android) y Próxima Lógica Core.
+
+--------------------------------------------------------------------
+1. ARQUITECTURA Y REQUERIMIENTOS A DETALLE
+--------------------------------------------------------------------
+[1.1] ARQUITECTURA TECNOLÓGICA:
+- Frontend: Aplicación móvil en Flutter (Dart).
+- Backend: Servidor Node.js utilizando el framework Express y TypeScript.
+- Base de Datos: SQLite (para almacenamiento ligero de configuraciones, hábitos y respuestas del usuario).
+- IA Core: API de Google Gemini (Multimodal para entender voz y texto, y devolver respuestas).
+- Host: Servidor Virtual Privado (VPS) utilizando EasyPanel y Docker.
+
+[1.2] REQUERIMIENTO 1: INTERACCIÓN DE VOZ "ESTILO WHATSAPP"
+- UI Frontend: Un botón principal de grabación de micrófono. Al mantenerlo, graba; al soltarlo, envía.
+- Lógica Frontend: Uso del paquete `record` para capturar el audio temporalmente (`.m4a`) y enviarlo vía Multipart POST al backend.
+- Lógica Backend: Endpoint `/upload` que recibe el archivo usando `multer`, lo lee, y lo envía a la IA Gemini. Luego recibe la respuesta de Gemini y genera un archivo de audio como respuesta usando TTS (Text-to-Speech) o texto hablado.
+
+[1.3] REQUERIMIENTO 2: FLUJO DE VIDA "LIFE PLANNER" (FASE 2)
+- Onboarding (100 Preguntas): Un cuestionario secuencial. El usuario lo responde por voz. La IA categoriza respuestas (metas financieras, salud, espíritu, etc.) y las guarda en SQLite.
+- Propuesta de Hábitos: Basado en las 100 respuestas, el sistema (a través de Gemini) sugiere 3 hábitos principales (Ej: "Leer 15 min", "Caminar 5km").
+- Check-in Diario: Un panel diario donde Jarvis pregunta: "¿Cómo está tu energía hoy? (1 al 10)". Si es 10, exige el máximo; si es 2, adapta la rutina para descansar o hacer lo mínimo necesario.
+- Notificaciones: Alarmas push locales que le recuerdan al usuario sus tareas y su rutina según la energía reportada.
+
+--------------------------------------------------------------------
+2. HISTORIAL TÉCNICO Y PASOS REALIZADOS (BITÁCORA 1:1)
+--------------------------------------------------------------------
+
+[Fase 1: Setup Local y Servidor Backend]
+- [X] Se estructuró el directorio principal dividiendo `/frontend` y `/backend`.
+- [X] Se programó `backend/src/index.ts` inicializando un servidor Express en el puerto 3000.
+- [X] Se integró `@google/genai` utilizando la variable de entorno `GEMINI_API_KEY`.
+- [X] Se construyó el endpoint POST `/upload`.
+- [X] Se creó el `Dockerfile` en el backend para permitir la subida a EasyPanel exponiendo el puerto 3000 interno y pasándole los comandos de compilación de TypeScript (`npm run build`).
+- [X] Despliegue en EasyPanel exitoso:
+      - Dominio productivo: `https://app-jarvisplanner.hzedxy.easypanel.host/`
+      - Commit en GitHub: "Update API endpoints to EasyPanel"
+
+[Fase 2: Construcción del Frontend]
+- [X] Se modificó `main.dart` para tener una UI limpia, negra, con estilo tech/Jarvis y un botón flotante central de micrófono.
+- [X] Se instalaron paquetes de Flutter: `http`, `record` (v7.1.1), `audioplayers` y `path_provider`.
+- [X] Se enlazó el Frontend con la URL en la nube de EasyPanel para las peticiones HTTP.
+
+[Fase 3: Troubleshooting Extremo de Android (Bloqueos de Red del ISP)]
+- [X] Intento 1 de compilación (`flutter build apk`): Fallo por `Read timed out` al intentar descargar de `dl.google.com`. Diagnóstico: ISP bloqueando conexiones Maven/Google o alta latencia.
+- [X] Intento 2 (Configuración de Gradle): Se modificó `android/gradle.properties` agregando `systemProp.http.connectionTimeout=180000` y `org.gradle.jvmargs=-Djava.net.preferIPv4Stack=true`. Seguía fallando al descargar sub-dependencias.
+- [X] Intento 3 (Error NDK): Flutter fallaba pidiendo el NDK. Se descargó el zip de `android-ndk-r28c` manualmente desde el navegador del usuario y se instaló en `C:\Users\Jorge Castillo\AppData\Local\Android\sdk\ndk\28.2.13676358`.
+- [X] Intento 4 (Bypass de Repositorios): Los plugins de terceros (ej. `record_android`) ignoraban las reglas locales de Gradle y seguían buscando en Google, trabándose. Se creó un script global en `C:\Users\Jorge Castillo\.gradle\init.gradle` para escanear en tiempo real cualquier petición Maven e intercambiar la URL por un espejo en China (Aliyun): `https://maven.aliyun.com/repository/google`.
+- [X] Intento 5 (Fallo por Prefer_Settings): El script `init.gradle` violaba la política de seguridad de Flutter `RepositoriesMode.PREFER_SETTINGS`. Se refactorizó el script para ser "ninja": en lugar de inyectar repositorios, alteraba las strings de URLs en memoria.
+- [X] Intento 6 (Deadlock de Java): Al lanzar la compilación en modo Verboso, se descubrió un fallo crítico silencioso. El motor de Java se congelaba debido a un desajuste de versiones de SDK: `"an SDK XML file of version 4 was encountered... versions of Android Studio and the command-line tools that were released at different times"`. Esto es un bug conocido de usar herramientas CLI antiguas de Android con Gradle moderno en Windows sin IDE.
+- [X] Solución Definitiva (En Proceso): Migrar el control de compilación a la interfaz visual de Android Studio. Esta herramienta posee su propio JDK aislado, descarga los XML correctos del SDK y maneja las dependencias evadiendo los deadlocks de la consola.
+
+[Fase 4: Troubleshooting del Servidor y Despliegue en EasyPanel]
+- [X] Análisis del error 404 en el Frontend: Se descubrió que Traefik estaba enrutando peticiones al proxy de fallback "Service not started" de EasyPanel.
+- [X] Corrección de puertos: El código de Node.js escuchaba en el puerto 3000, pero la imagen base de EasyPanel por defecto reenvía el tráfico al puerto 80. Se actualizó el código (`process.env.PORT || 80`) y el `Dockerfile` (`EXPOSE 80`).
+- [X] Corrección de base de datos en Docker: Se detectó un fallo `SQLITE_CANTOPEN` que impedía el arranque del contenedor. Se agregó lógica en `database.ts` para crear automáticamente la carpeta `/data` antes de arrancar SQLite.
+- [X] Restricciones de PaaS: Se confirmó que EasyPanel sobrescribe configuraciones manuales en Traefik o contenedores de Swarm independientes. Se subió la versión correcta a GitHub y se instruyó al usuario a usar el botón nativo "Deploy" de la plataforma.
+
+[Fase 5: Afinación Frontend Local y Recomendaciones de UI/UX]
+- [X] Fallos de Consola PowerShell: Se identificó que usar el comando CMD `set` lanzaba excepciones en PowerShell ("Token 'build' inesperado"). Se corrigió enseñando el uso de `$env:FLUTTER_STORAGE_BASE_URL="..."`.
+- [X] Recuperación de red (Gradle): Se proporcionaron rutinas de limpieza de caché (`.\gradlew clean`, `flutter clean`) para solucionar fallos recurrentes de descarga de artefactos, en preparación para la compilación final por UI en Android Studio.
+- [X] Búsqueda en Ecosistema de Skills: A petición del usuario para lograr una app premium y funcional, se rastrearon e investigaron herramientas del catálogo oficial. Se documentaron skills de diseño (`ui-ux-pro-max`), animaciones fluidas, arquitectura recomendada de UI y manejo de estado.
+
+--------------------------------------------------------------------
+3. ROADMAP / PENDIENTES PASO A PASO
+--------------------------------------------------------------------
+
+[Paso 3.1: Emisión del APK Base]
+- [ ] Completar la instalación de Plugins (Flutter/Dart) y SDK Tools (NDK side-by-side, Command-line tools) en Android Studio.
+- [ ] Sincronizar Gradle dentro de Android Studio y ejecutar `Build -> Build APK`.
+- [ ] Extraer el archivo `.apk` resultante, instalar en el teléfono físico y probar el flujo de audio con Jarvis desplegado.
+
+[Paso 3.2: Lógica Backend (Proyecto de Vida)]
+- [ ] Crear la tabla SQLite en Node.js (Tabla `users`, `energy_logs`, `habits`).
+- [ ] Desarrollar endpoint `/start_planner` para enviar las primeras 10 preguntas (de 100).
+- [ ] Programar un agente en Gemini que interprete las respuestas y guarde el contexto de la vida del usuario.
+
+[Paso 3.3: Lógica Frontend (UI del Planner)]
+- [ ] Crear la pantalla inicial "Bienvenido, soy Jarvis. Comencemos tu evaluación".
+- [ ] Programar un modal tipo Chat o de Tarjetas Deslizables para presentar y responder las preguntas por voz.
+- [ ] Crear el "Dashboard" principal donde aparezca:
+      - 3 Hábitos clave recomendados.
+      - Botón principal de Check-in de energía diaria.
+      - Botón clásico del micrófono para charlas libres.
+
+[Paso 3.4: Sistema de Notificaciones]
+- [ ] Integrar el paquete `flutter_local_notifications`.
+- [ ] Programar un disparador local (ej. a las 8:00 AM) con el texto "¿Cómo está la batería hoy, jefe? Reporte energía."
+- [ ] Actualizar el Dashboard en consecuencia (si energía es baja = modo recovery; si energía es alta = modo hyper-focus).
