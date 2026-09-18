@@ -26,7 +26,18 @@ export const initDB = async (dbPath: string = './jarvis.sqlite'): Promise<void> 
                 )
             `, (err) => {
                 if (err) reject(err);
-                resolve();
+                
+                db.run(`
+                    CREATE TABLE IF NOT EXISTS daily_logs (
+                        user_id TEXT,
+                        date TEXT,
+                        energy_level INTEGER,
+                        PRIMARY KEY (user_id, date)
+                    )
+                `, (err) => {
+                    if (err) reject(err);
+                    resolve();
+                });
             });
         });
     });
@@ -47,7 +58,27 @@ export const getBlueprint = async (userId: string): Promise<string | null> => {
     return new Promise((resolve, reject) => {
         db.get(`SELECT blueprint_data FROM blueprints WHERE user_id = ?`, [userId], (err, row: any) => {
             if (err) reject(err);
-            resolve(row ? row.blueprint_data : null);
+            else resolve(row ? row.blueprint_data : null);
+        });
+    });
+};
+
+export const saveEnergyLevel = async (userId: string, date: string, level: number): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        const stmt = db.prepare(`INSERT OR REPLACE INTO daily_logs (user_id, date, energy_level) VALUES (?, ?, ?)`);
+        stmt.run(userId, date, level, (err: Error | null) => {
+            stmt.finalize();
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+};
+
+export const getEnergyLevel = async (userId: string, date: string): Promise<number | null> => {
+    return new Promise((resolve, reject) => {
+        db.get(`SELECT energy_level FROM daily_logs WHERE user_id = ? AND date = ?`, [userId, date], (err, row: any) => {
+            if (err) reject(err);
+            else resolve(row ? row.energy_level : null);
         });
     });
 };
