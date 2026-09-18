@@ -1,5 +1,7 @@
 import sqlite3 from 'sqlite3';
 import { promisify } from 'util';
+import fs from 'fs';
+import path from 'path';
 
 let db: sqlite3.Database;
 
@@ -13,8 +15,13 @@ export const closeDB = async (): Promise<void> => {
     });
 };
 
-export const initDB = async (dbPath: string = './jarvis.sqlite'): Promise<void> => {
+export const initDB = async (dbPath: string = './data/jarvis.sqlite'): Promise<void> => {
     return new Promise((resolve, reject) => {
+        try {
+            fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+        } catch (err) {
+            console.error('Failed to create db directory', err);
+        }
         db = new sqlite3.Database(dbPath, (err) => {
             if (err) reject(err);
             db.run(`PRAGMA journal_mode=WAL;`);
