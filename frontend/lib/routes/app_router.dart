@@ -3,9 +3,10 @@ import 'package:go_router/go_router.dart';
 import '../onboarding_screen.dart';
 import '../chat_screen.dart';
 
-final appRouter = GoRouter(
-  initialLocation: '/onboarding',
-  routes: [
+GoRouter getAppRouter(String initialLocation) {
+  return GoRouter(
+    initialLocation: initialLocation,
+    routes: [
     GoRoute(
       path: '/onboarding',
       pageBuilder: (context, state) => CustomTransitionPage(
@@ -28,3 +29,4 @@ final appRouter = GoRouter(
     ),
   ],
 );
+}

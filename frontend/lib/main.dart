@@ -2,24 +2,32 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'providers/onboarding_provider.dart';
 import 'providers/chat_provider.dart';
 import 'routes/app_router.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  final bool hasBlueprint = prefs.getBool('has_blueprint') ?? false;
+  final initialLocation = hasBlueprint ? '/chat' : '/onboarding';
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => OnboardingProvider()),
         ChangeNotifierProvider(create: (_) => ChatProvider()),
       ],
-      child: const JarvisApp(),
+      child: JarvisApp(initialLocation: initialLocation),
     ),
   );
 }
 
 class JarvisApp extends StatelessWidget {
-  const JarvisApp({super.key});
+  final String initialLocation;
+  const JarvisApp({super.key, required this.initialLocation});
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +47,7 @@ class JarvisApp extends StatelessWidget {
           displayColor: Colors.white,
         ),
       ),
-      routerConfig: appRouter,
+      routerConfig: getAppRouter(initialLocation),
     );
   }
 }

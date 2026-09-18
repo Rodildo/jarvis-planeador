@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_service.dart';
 
 class OnboardingProvider extends ChangeNotifier {
@@ -64,6 +65,10 @@ class OnboardingProvider extends ChangeNotifier {
     try {
       final success = await _api.submitAssessment(messages);
       if (!success) throw Exception('Falló al guardar el blueprint');
+      
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('has_blueprint', true);
+      
       return true; // Navigates to Chat
     } catch (e) {
       errorMessage = e.toString();
