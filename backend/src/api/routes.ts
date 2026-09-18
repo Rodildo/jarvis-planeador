@@ -6,6 +6,10 @@ import { saveBlueprint, getBlueprint, saveMorningLog, saveMiddayLog, saveDailyAc
 const upload = multer({ storage: multer.memoryStorage() });
 export const apiRouter = Router();
 
+apiRouter.get('/version', (req, res) => {
+    res.json({ version: '3.0.0-openrouter' });
+});
+
 apiRouter.post('/assessment', async (req, res) => {
     try {
         const { userId, answers } = req.body;
