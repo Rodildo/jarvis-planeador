@@ -1,5 +1,5 @@
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL_NAME = "meta-llama/llama-3.1-8b-instruct:free";
+const MODEL_NAME = "openrouter/free";
 
 const callOpenRouter = async (systemPrompt: string, userMessage: string, forceJson: boolean = false): Promise<string> => {
     const apiKey = process.env.OPENROUTER_API_KEY;
