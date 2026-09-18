@@ -15,7 +15,7 @@ apiRouter.post('/assessment', async (req, res) => {
         res.status(200).json({ success: true, blueprint });
     } catch (error: any) {
         console.error('Assessment Error:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        res.status(500).json({ error: error.message || 'Internal server error' });
     }
 });
 
@@ -26,7 +26,7 @@ apiRouter.post('/onboarding/question', async (req, res) => {
         res.status(200).json({ success: true, question });
     } catch (error: any) {
         console.error('Onboarding Error:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        res.status(500).json({ error: error.message || 'Internal server error' });
     }
 });
 
@@ -43,7 +43,7 @@ apiRouter.post('/transcribe', upload.single('audio'), async (req, res) => {
         res.status(200).json({ success: true, text: transcription });
     } catch (error: any) {
         console.error('Transcription Error:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        res.status(500).json({ error: error.message || 'Internal server error' });
     }
 });
 
@@ -61,7 +61,7 @@ apiRouter.post('/briefing', async (req, res) => {
         res.status(200).json({ success: true, briefing: optionsJson });
     } catch (error: any) {
         console.error('Briefing Error:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        res.status(500).json({ error: error.message || 'Internal server error' });
     }
 });
 
@@ -74,7 +74,7 @@ apiRouter.post('/daily-actions', async (req, res) => {
         res.status(200).json({ success: true });
     } catch (error: any) {
         console.error('Save Actions Error:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        res.status(500).json({ error: error.message || 'Internal server error' });
     }
 });
 
@@ -97,6 +97,6 @@ apiRouter.post('/midday', async (req, res) => {
         res.status(200).json({ success: true, message });
     } catch (error: any) {
         console.error('Midday Error:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        res.status(500).json({ error: error.message || 'Internal server error' });
     }
 });
