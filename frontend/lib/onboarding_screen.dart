@@ -92,8 +92,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                               decoration: BoxDecoration(
-                                color: isUser ? const Color(0xFF00E5FF).withOpacity(0.15) : Colors.white.withOpacity(0.05),
-                                border: Border.all(color: isUser ? const Color(0xFF00E5FF).withOpacity(0.3) : Colors.white.withOpacity(0.1)),
+                                color: isUser ? const Color(0xFF00E5FF).withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.05),
+                                border: Border.all(color: isUser ? const Color(0xFF00E5FF).withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.1)),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
@@ -132,8 +132,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.4),
-                      border: Border(top: BorderSide(color: Colors.white.withOpacity(0.05))),
+                      color: Colors.black.withValues(alpha: 0.4),
+                      border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
                     ),
                     child: Row(
                       children: [
@@ -143,9 +143,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             style: GoogleFonts.inter(color: Colors.white),
                             decoration: InputDecoration(
                               hintText: provider.isRecording ? 'Escuchando...' : 'Escribe tu respuesta...',
-                              hintStyle: TextStyle(color: provider.isRecording ? const Color(0xFFFF007F) : Colors.white.withOpacity(0.3)),
+                              hintStyle: TextStyle(color: provider.isRecording ? const Color(0xFFFF007F) : Colors.white.withValues(alpha: 0.3)),
                               filled: true,
-                              fillColor: Colors.white.withOpacity(0.05),
+                              fillColor: Colors.white.withValues(alpha: 0.05),
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                             ),
@@ -166,9 +166,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           child: Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: provider.isRecording ? const Color(0xFFFF007F) : const Color(0xFF00E5FF).withOpacity(0.1),
+                              color: provider.isRecording ? const Color(0xFFFF007F) : const Color(0xFF00E5FF).withValues(alpha: 0.1),
                               shape: BoxShape.circle,
-                              border: Border.all(color: provider.isRecording ? Colors.transparent : const Color(0xFF00E5FF).withOpacity(0.5)),
+                              border: Border.all(color: provider.isRecording ? Colors.transparent : const Color(0xFF00E5FF).withValues(alpha: 0.5)),
                               boxShadow: provider.isRecording 
                                 ? [const BoxShadow(color: Color(0xFFFF007F), blurRadius: 20, spreadRadius: 2)]
                                 : [],
