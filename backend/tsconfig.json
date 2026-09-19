@@ -42,6 +42,7 @@
     "skipLibCheck": true,
   },
   "exclude": [
-    "tests/**/*"
+    "tests/**/*",
+    "test-*.ts"
   ]
 }
