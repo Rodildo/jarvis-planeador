@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 
 class ApiService {
@@ -6,8 +7,7 @@ class ApiService {
   static const String userId = 'default_user';
 
   Future<String?> transcribeAudio(String path) async {
-    final audioData = await http.get(Uri.parse(path));
-    final bytes = audioData.bodyBytes;
+    final bytes = await File(path).readAsBytes();
     
     var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/transcribe'));
     request.files.add(http.MultipartFile.fromBytes('audio', bytes, filename: 'audio.webm'));
@@ -30,7 +30,7 @@ class ApiService {
     if (response.statusCode == 200) {
       return jsonDecode(response.body)['question'];
     }
-    throw Exception('Failed to fetch question');
+    throw Exception('Failed to fetch question: ${response.body}');
   }
 
   Future<bool> submitAssessment(List<Map<String, String>> messages) async {

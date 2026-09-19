@@ -64,6 +64,11 @@ Estado del Proyecto: Fase de Despliegue de Frontend (Android) y Próxima Lógica
 - [X] Recuperación de red (Gradle): Se proporcionaron rutinas de limpieza de caché (`.\gradlew clean`, `flutter clean`) para solucionar fallos recurrentes de descarga de artefactos, en preparación para la compilación final por UI en Android Studio.
 - [X] Búsqueda en Ecosistema de Skills: A petición del usuario para lograr una app premium y funcional, se rastrearon e investigaron herramientas del catálogo oficial. Se documentaron skills de diseño (`ui-ux-pro-max`), animaciones fluidas, arquitectura recomendada de UI y manejo de estado.
 
+[Fase 6: Migración de Entorno y Despliegue Exitoso]
+- [X] Migración Completa: Se trasladó el proyecto, el SDK de Flutter, Android SDK, Android Studio, Gradle cache y Pub cache del disco C al disco E (`E:\Desarrollo`) para liberar espacio. Se actualizaron las variables de entorno (PATH, ANDROID_HOME, etc.) para dejar el sistema 100% funcional.
+- [X] Depuración del Backend (Crash Loop 503): Se diagnosticó que EasyPanel (y Traefik) arrojaba error 503 porque el contenedor estaba reiniciándose. La causa fue que `ts-node` evaluaba archivos de prueba (`test-models.ts`) sueltos sin dependencias (`@google/genai`).
+- [X] Corrección de Despliegue: Se modificó `tsconfig.json` para excluir archivos `test-*.ts` de la compilación de producción. Se hizo `commit` y `push` a GitHub para desencadenar el despliegue automático exitoso de la nueva ruta `/onboarding/question`.
+
 --------------------------------------------------------------------
 3. ROADMAP / PENDIENTES PASO A PASO
 --------------------------------------------------------------------
