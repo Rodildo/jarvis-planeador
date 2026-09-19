@@ -1,5 +1,5 @@
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL_NAME = "openrouter/free";
+const MODEL_NAME = "deepseek/deepseek-v3.2";
 
 const callOpenRouter = async (systemPrompt: string, userMessage: string, forceJson: boolean = false): Promise<string> => {
     const apiKey = process.env.OPENROUTER_API_KEY;
@@ -14,7 +14,7 @@ const callOpenRouter = async (systemPrompt: string, userMessage: string, forceJs
     };
 
     if (forceJson) {
-        // body.response_format = { type: "json_object" }; // Deshabilitado porque causa errores 400 en algunos modelos gratuitos
+        body.response_format = { type: "json_object" };
     }
 
     const response = await fetch(OPENROUTER_URL, {
