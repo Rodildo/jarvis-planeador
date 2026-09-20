@@ -2,6 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
 
 class JarvisDrawer extends StatelessWidget {
   const JarvisDrawer({super.key});
@@ -58,6 +60,23 @@ class JarvisDrawer extends StatelessWidget {
                   title: 'Mi Plan Maestro',
                   route: '/blueprint',
                   isSelected: currentRoute == '/blueprint',
+                ),
+                _buildDrawerItem(
+                  context,
+                  icon: Icons.bar_chart_outlined,
+                  title: 'Historial',
+                  route: '/history',
+                  isSelected: currentRoute == '/history',
+                ),
+                const Divider(color: Colors.white12, height: 32),
+                ListTile(
+                  leading: const Icon(Icons.logout, color: Colors.white54),
+                  title: Text('Cerrar sesión', style: GoogleFonts.inter(color: Colors.white54)),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await context.read<AuthProvider>().logout();
+                    if (context.mounted) context.go('/login');
+                  },
                 ),
               ],
             ),

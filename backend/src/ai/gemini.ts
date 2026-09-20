@@ -1,6 +1,23 @@
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL_NAME = "deepseek/deepseek-v3.2";
 
+export interface LifeArea {
+    key: string;
+    label: string;
+}
+
+// El brief inicial (y cada re-brief mensual) cubre estas 5 áreas con 10
+// preguntas cada una = 50 preguntas en total.
+export const LIFE_AREAS: LifeArea[] = [
+    { key: 'salud', label: 'Salud física y mental' },
+    { key: 'carrera_finanzas', label: 'Carrera y finanzas' },
+    { key: 'relaciones', label: 'Relaciones y familia' },
+    { key: 'crecimiento', label: 'Crecimiento personal y hábitos' },
+    { key: 'proposito', label: 'Propósito y visión de vida' },
+];
+export const QUESTIONS_PER_AREA = 10;
+export const TOTAL_ONBOARDING_QUESTIONS = LIFE_AREAS.length * QUESTIONS_PER_AREA;
+
 const callOpenRouter = async (systemPrompt: string, userMessage: string, forceJson: boolean = false): Promise<string> => {
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) throw new Error('OPENROUTER_API_KEY not configured');
@@ -51,100 +68,118 @@ const callOpenRouter = async (systemPrompt: string, userMessage: string, forceJs
             }
         }
     }
-    
+
     throw lastError;
 };
 
-export const generateBlueprint = async (answers: any): Promise<any> => {
-    const systemPrompt = `Act as an expert life planner and psychologist. Ensure the output is strictly valid JSON format.
-    Expected JSON Structure:
-    {
-        "goals": ["string"],
-        "daily_routine": "string"
-    }`;
-    const userPrompt = `Based on the following user assessment, create a comprehensive life blueprint.\nUser answers: ${JSON.stringify(answers)}`;
-
-    const text = await callOpenRouter(systemPrompt, userPrompt, true);
-    
+const extractJson = (text: string, errorLabel: string): any => {
     try {
         const match = text.match(/\{[\s\S]*\}/);
-        if (!match) throw new Error("No JSON object found in response");
+        if (!match) throw new Error(`No JSON object found in ${errorLabel} response`);
         return JSON.parse(match[0].trim());
     } catch (err) {
-        console.error("Failed to parse JSON:", text);
+        console.error(`Failed to parse ${errorLabel} JSON:`, text);
         throw err;
     }
 };
 
-export const generateMorningOptions = async (blueprint: any, energyLevel: number): Promise<any> => {
+export const generateBlueprint = async (answers: any, previousBlueprint?: any): Promise<any> => {
+    const areaKeys = LIFE_AREAS.map(a => `"${a.key}"`).join(', ');
+    const systemPrompt = `Actúa como un experto planificador de vida y psicólogo. El usuario respondió una entrevista de ${TOTAL_ONBOARDING_QUESTIONS} preguntas organizada en 5 áreas de vida: ${LIFE_AREAS.map(a => a.label).join(', ')}.
+    Devuelve estrictamente un JSON válido con este formato exacto:
+    {
+        "life_vision": "Síntesis breve y potente del propósito y la visión de vida del usuario",
+        "areas": {
+            ${LIFE_AREAS.map(a => `"${a.key}": { "summary": "string", "goals": ["string", "string", "string"] }`).join(',\n            ')}
+        },
+        "daily_routine": "Descripción de cómo debería verse un día ideal para esta persona, en 2-3 frases"
+    }
+    Las claves dentro de "areas" deben ser exactamente estas: ${areaKeys}. Cada área debe tener entre 2 y 4 metas concretas y accionables basadas en las respuestas del usuario.`;
+
+    const updateNote = previousBlueprint
+        ? `\nEste es un plan de vida EXISTENTE que el usuario está actualizando en su re-brief mensual. Blueprint anterior: ${JSON.stringify(previousBlueprint)}. Evoluciona y actualiza las metas en vez de ignorar lo anterior: conserva lo que sigue vigente y ajusta o reemplaza lo que cambió según las nuevas respuestas.`
+        : '';
+
+    const userPrompt = `Respuestas del usuario a las ${TOTAL_ONBOARDING_QUESTIONS} preguntas: ${JSON.stringify(answers)}${updateNote}`;
+
+    const text = await callOpenRouter(systemPrompt, userPrompt, true);
+    return extractJson(text, 'blueprint');
+};
+
+export const generateDailyPlan = async (blueprint: any, energyLevel: number): Promise<any> => {
     let modeContext = "";
     if (energyLevel <= 2) {
-        modeContext = "MODO REFUGIO: Baja energía (1-2). Elimina tareas complejas sin juzgar. Enfócate en cosas minúsculas.";
+        modeContext = "MODO REFUGIO: Baja energía (1-2). Pocas tareas, mínimas y sin culpa. Nada que requiera gran esfuerzo mental o físico.";
     } else if (energyLevel >= 4) {
-        modeContext = "MODO ALTA ENERGÍA (Expansión): Energía alta (4-5). Tareas estratégicas y creativas permitidas, pero PON FRENOS SALUDABLES.";
+        modeContext = "MODO ALTA ENERGÍA (Expansión): Energía alta (4-5). Tareas más ambiciosas y estratégicas permitidas, pero incluye al menos un freno saludable (descanso, límite) para evitar el sobreesfuerzo.";
     } else {
         modeContext = "MODO RITMO ESTABLE (Baseline): Energía normal (3). Avance constante sin sobreesfuerzo.";
     }
 
-    const systemPrompt = `Eres Jarvis, el estratega de vida del usuario.
-    Devuelve estrictamente un JSON con este formato:
+    const systemPrompt = `Eres Jarvis, el guía y estratega de vida del usuario. Tu trabajo es decirle exactamente qué hacer hoy para avanzar hacia su plan de vida, adaptado a su energía de hoy (el usuario es bipolar: algunos días tiene mucha energía y otros muy poca, así que la adaptación es crítica).
+    Devuelve estrictamente un JSON con este formato exacto:
     {
-      "greeting": "Mensaje motivacional corto y empático (adaptado a su energía).",
-      "goals": [
-        {
-          "goal_name": "Nombre de la meta (basada en el blueprint)",
-          "options": [
-            { "level": "Suave", "action": "La acción más pequeña y fácil posible" },
-            { "level": "Media", "action": "Acción moderada (normal)" },
-            { "level": "Intensa", "action": "Acción que requiere gran esfuerzo y concentración" }
-          ]
-        }
-      ]
-    }`;
-    
-    const userPrompt = `Aquí está el 'Life Blueprint' del usuario: ${JSON.stringify(blueprint)}
-    HOY: El usuario reporta un nivel de energía matutino de ${energyLevel}/5. Contexto: ${modeContext}
-    Extrae al menos 2 metas del blueprint y dales 3 opciones de intensidad a cada una.`;
+      "greeting": "Mensaje motivacional corto y empático (adaptado a su energía de hoy).",
+      "morning": [ { "task": "Acción concreta", "reason": "Por qué esta tarea, ligada a una meta del blueprint (breve)" } ],
+      "midday": [ { "task": "Acción concreta", "reason": "string breve" } ],
+      "night": [ { "task": "Acción concreta", "reason": "string breve" } ]
+    }
+    Reglas:
+    - "morning": lo primero que debe hacer al levantarse (rutina, mentalidad, algo pequeño y activador).
+    - "midday": tareas para el transcurso del día, las que más avanzan sus metas activas.
+    - "night": cierre del día (reflexión breve, descanso, preparación para mañana).
+    - Cada lista debe tener entre 1 y 4 tareas según el nivel de energía (menos y más simples si la energía es baja).
+    - Todas las tareas deben conectar con al menos una meta del blueprint, nunca genéricas o vacías.`;
+
+    const userPrompt = `Life Blueprint del usuario: ${JSON.stringify(blueprint)}
+    HOY: el usuario reporta un nivel de energía matutino de ${energyLevel}/5. Contexto: ${modeContext}
+    Genera el plan completo del día (morning/midday/night) siguiendo el formato indicado.`;
 
     const text = await callOpenRouter(systemPrompt, userPrompt, true);
-
-    try {
-        const match = text.match(/\{[\s\S]*\}/);
-        if (!match) throw new Error("No JSON object found in morning options response");
-        return JSON.parse(match[0].trim());
-    } catch (err) {
-        console.error("Failed to parse morning options JSON:", text);
-        throw new Error("Failed to parse morning options JSON");
-    }
+    return extractJson(text, 'daily plan');
 };
 
-export const generateMidDayAdjustment = async (blueprint: any, morningEnergy: number, middayEnergy: number, chosenActions: any): Promise<string> => {
-    const systemPrompt = `Eres Jarvis. Dame un mensaje corto, empático y adaptativo para la tarde. 
+export const generateMidDayAdjustment = async (blueprint: any, morningEnergy: number, middayEnergy: number, dailyPlan: any): Promise<string> => {
+    const systemPrompt = `Eres Jarvis. Dame un mensaje corto, empático y adaptativo para la tarde.
     Devuelve SOLO el texto del mensaje directamente, como si se lo dijeras en el chat.`;
-    
-    const userPrompt = `Esta mañana el usuario tenía energía ${morningEnergy}/5 y se propuso hacer esto: ${JSON.stringify(chosenActions)}.
-    Han pasado 6 horas. Su energía AHORA es ${middayEnergy}/5.
-    Si la energía bajó drásticamente, dile que es hora de parar y priorizar el descanso.
-    Si la energía subió o se mantiene bien, dale un pequeño empujón motivacional pero recordándole cuidar su ciclo de sueño.`;
+
+    const userPrompt = `Esta mañana el usuario tenía energía ${morningEnergy}/5 y su plan del día era: ${JSON.stringify(dailyPlan)}.
+    Han pasado varias horas. Su energía AHORA es ${middayEnergy}/5.
+    Si la energía bajó drásticamente, dile que es hora de parar y priorizar el descanso, y que simplifique las tareas de la tarde/noche.
+    Si la energía subió o se mantiene bien, dale un pequeño empujón motivacional para las tareas de "midday"/"night" pendientes, recordándole cuidar su ciclo de sueño.`;
 
     return await callOpenRouter(systemPrompt, userPrompt, false);
 };
 
-export const generateNextOnboardingQuestion = async (previousQA: any[]): Promise<string> => {
-    const systemPrompt = `Eres Jarvis, un terapeuta y estratega de vida altamente inteligente. Estamos en la entrevista inicial (onboarding) del usuario para construir su "Life Blueprint".
-    Genera UNA sola pregunta profunda y empática para continuar perfilando sus metas de vida, miedos, hábitos y rutinas ideales.
-    No hagas una lista de preguntas. Solo haz la siguiente mejor pregunta, natural y conversacional. No añadas saludos, ve directo al punto con empatía.`;
-    
-    const userPrompt = `Historial de la conversación hasta ahora: ${JSON.stringify(previousQA)}`;
+export interface OnboardingQuestionResult {
+    question: string;
+    areaKey: string;
+    areaLabel: string;
+    areaIndex: number;
+    questionNumber: number;
+    totalQuestions: number;
+}
 
-    return await callOpenRouter(systemPrompt, userPrompt, false);
+export const generateNextOnboardingQuestion = async (previousQA: any[]): Promise<OnboardingQuestionResult> => {
+    const answeredCount = previousQA.filter((m: any) => m && m.role === 'user').length;
+    const areaIndex = Math.min(Math.floor(answeredCount / QUESTIONS_PER_AREA), LIFE_AREAS.length - 1);
+    const questionNumber = (answeredCount % QUESTIONS_PER_AREA) + 1;
+    const area = LIFE_AREAS[areaIndex]!;
+
+    const systemPrompt = `Eres Jarvis, un terapeuta y estratega de vida altamente inteligente. Estás construyendo el "Life Blueprint" del usuario a través de una entrevista de ${TOTAL_ONBOARDING_QUESTIONS} preguntas, organizada en ${LIFE_AREAS.length} áreas de ${QUESTIONS_PER_AREA} preguntas cada una.
+    ÁREA ACTUAL: "${area.label}" (pregunta ${questionNumber} de ${QUESTIONS_PER_AREA} de esta área).
+    Genera UNA sola pregunta profunda, empática y específica de esta área, que no repita temas ya cubiertos en la conversación. No hagas una lista de preguntas ni saludes, ve directo al punto con empatía.`;
+
+    const userPrompt = `Historial completo de la conversación hasta ahora: ${JSON.stringify(previousQA)}`;
+
+    const question = await callOpenRouter(systemPrompt, userPrompt, false);
+
+    return {
+        question,
+        areaKey: area.key,
+        areaLabel: area.label,
+        areaIndex,
+        questionNumber,
+        totalQuestions: TOTAL_ONBOARDING_QUESTIONS,
+    };
 };
-
-export const transcribeAudio = async (base64Audio: string, mimeType: string): Promise<string> => {
-    // OpenRouter doesn't support audio transcription in their chat API directly yet.
-    // We will return a placeholder since this feature might be unused for now, 
-    // or we'd need Google API specifically for audio.
-    console.warn("Audio transcription requested but not supported via OpenRouter free text model.");
-    return "[Transcripción de audio no soportada por el modelo actual]";
-};
-

@@ -1,25 +1,82 @@
 import 'dart:convert';
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static const String baseUrl = 'https://app-jarvisplanner.hzedxy.easypanel.host/api';
-  static const String userId = 'default_user';
+  static const String baseUrl = String.fromEnvironment(
+    'JARVIS_API_URL',
+    defaultValue: 'https://app-jarvisplanner.hzedxy.easypanel.host/api',
+  );
+  static const String _tokenPrefsKey = 'auth_token';
 
-  Future<String?> transcribeAudio(String filePath) async {
-    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/transcribe'));
-    request.files.add(await http.MultipartFile.fromPath('audio', filePath));
-    final response = await request.send();
-    if (response.statusCode == 200) {
-      final resData = await response.stream.bytesToString();
-      return jsonDecode(resData)['text'];
+  static String? _token;
+
+  /// Se dispara cuando cualquier llamada devuelve 401 (token vencido o
+  /// revocado), para que la app pueda cerrar sesión y volver a /login.
+  static VoidCallback? onUnauthorized;
+
+  static bool get isLoggedIn => _token != null;
+
+  static Future<void> loadStoredToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    _token = prefs.getString(_tokenPrefsKey);
+  }
+
+  static Future<void> _setToken(String token) async {
+    _token = token;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_tokenPrefsKey, token);
+  }
+
+  Future<void> logout() async {
+    ApiService._token = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_tokenPrefsKey);
+    await prefs.remove('has_blueprint');
+  }
+
+  Map<String, String> get _headers => {
+        'Content-Type': 'application/json',
+        if (_token != null) 'Authorization': 'Bearer $_token',
+      };
+
+  void _reportIfUnauthorized(http.Response response) {
+    if (response.statusCode == 401) onUnauthorized?.call();
+  }
+
+  Future<void> register(String email, String password) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/register'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'password': password}),
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 201 && data['token'] != null) {
+      await _setToken(data['token']);
+      return;
     }
-    return null;
+    throw Exception(data['error'] ?? 'No se pudo crear la cuenta.');
+  }
+
+  Future<void> login(String email, String password) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/login'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'password': password}),
+    );
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200 && data['token'] != null) {
+      await _setToken(data['token']);
+      return;
+    }
+    throw Exception(data['error'] ?? 'Correo o contraseña incorrectos.');
   }
 
   Future<bool> checkProfile() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/profile/$userId'));
+      final response = await http.get(Uri.parse('$baseUrl/profile'), headers: _headers);
+      _reportIfUnauthorized(response);
       if (response.statusCode == 200) {
         return jsonDecode(response.body)['hasBlueprint'] ?? false;
       }
@@ -29,11 +86,43 @@ class ApiService {
     return false;
   }
 
+  Future<Map<String, dynamic>?> getTodayLog() async {
+    try {
+      final date = DateTime.now().toIso8601String().split('T')[0];
+      final response = await http.get(Uri.parse('$baseUrl/daily-log/$date'), headers: _headers);
+      _reportIfUnauthorized(response);
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body)['dailyLog'];
+      }
+    } catch (e) {
+      print('Get today log error: $e');
+    }
+    return null;
+  }
+
+  Future<List<Map<String, dynamic>>> getHistory({int days = 30}) async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/history?days=$days'), headers: _headers);
+      _reportIfUnauthorized(response);
+      if (response.statusCode == 200) {
+        final logs = jsonDecode(response.body)['logs'] as List;
+        return logs.cast<Map<String, dynamic>>();
+      }
+    } catch (e) {
+      print('Get history error: $e');
+    }
+    return [];
+  }
+
+  /// Devuelve { 'blueprint': {...}, 'updatedAt': 'ISO date string' } o null
+  /// si el usuario todavía no completó su primer brief.
   Future<Map<String, dynamic>?> getLifeBlueprint() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/blueprint/$userId'));
+      final response = await http.get(Uri.parse('$baseUrl/blueprint'), headers: _headers);
+      _reportIfUnauthorized(response);
       if (response.statusCode == 200) {
-        return jsonDecode(response.body)['blueprint'];
+        final data = jsonDecode(response.body);
+        return {'blueprint': data['blueprint'], 'updatedAt': data['updatedAt']};
       }
     } catch (e) {
       print('Get blueprint error: $e');
@@ -43,7 +132,8 @@ class ApiService {
 
   Future<List<Map<String, String>>> getOnboardingProgress() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/onboarding/progress/$userId'));
+      final response = await http.get(Uri.parse('$baseUrl/onboarding/progress'), headers: _headers);
+      _reportIfUnauthorized(response);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['messages'] != null) {
@@ -60,24 +150,27 @@ class ApiService {
 
   Future<void> saveOnboardingProgress(List<Map<String, String>> messages) async {
     try {
-      await http.post(
+      final response = await http.post(
         Uri.parse('$baseUrl/onboarding/progress'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'userId': userId, 'messages': messages}),
+        headers: _headers,
+        body: jsonEncode({'messages': messages}),
       );
+      _reportIfUnauthorized(response);
     } catch (e) {
       print('Save onboarding progress error: $e');
     }
   }
 
-  Future<String> getOnboardingQuestion(List<Map<String, String>> previousQA) async {
+  /// Devuelve { question, areaKey, areaLabel, areaIndex, questionNumber, totalQuestions }.
+  Future<Map<String, dynamic>> getOnboardingQuestion(List<Map<String, String>> previousQA) async {
     final response = await http.post(
       Uri.parse('$baseUrl/onboarding/question'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({'previousQA': previousQA}),
     );
+    _reportIfUnauthorized(response);
     if (response.statusCode == 200) {
-      return jsonDecode(response.body)['question'];
+      return jsonDecode(response.body);
     }
     throw Exception('Failed to fetch question: ${response.body}');
   }
@@ -85,51 +178,55 @@ class ApiService {
   Future<bool> submitAssessment(List<Map<String, String>> messages) async {
     final response = await http.post(
       Uri.parse('$baseUrl/assessment'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'userId': userId, 'answers': jsonEncode(messages)}),
+      headers: _headers,
+      body: jsonEncode({'answers': jsonEncode(messages)}),
     );
+    _reportIfUnauthorized(response);
     return response.statusCode == 200;
   }
 
-  Future<Map<String, dynamic>> getBriefing(int energyLevel) async {
+  /// Devuelve { greeting, morning: [{task, reason}], midday: [...], night: [...] }.
+  Future<Map<String, dynamic>> getDailyPlan(int energyLevel) async {
     final response = await http.post(
-      Uri.parse('$baseUrl/briefing'),
-      headers: {'Content-Type': 'application/json'},
+      Uri.parse('$baseUrl/daily-plan'),
+      headers: _headers,
       body: jsonEncode({
-        'userId': userId,
         'date': DateTime.now().toIso8601String().split('T')[0],
         'energyLevel': energyLevel
       }),
     );
+    _reportIfUnauthorized(response);
     if (response.statusCode == 200) {
-      return jsonDecode(response.body)['briefing'];
+      return jsonDecode(response.body)['plan'];
     }
-    throw Exception('Failed to fetch briefing: ${response.body}');
+    throw Exception('Failed to fetch daily plan: ${response.body}');
   }
 
-  Future<bool> confirmDailyActions(Map<String, dynamic> selectedActions) async {
+  /// Guarda el estado completo del día (plan + tareas completadas + tareas
+  /// manuales). Se llama cada vez que algo cambia, no solo una vez.
+  Future<bool> saveDailyState(Map<String, dynamic> state) async {
     final response = await http.post(
       Uri.parse('$baseUrl/daily-actions'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
-        'userId': userId,
         'date': DateTime.now().toIso8601String().split('T')[0],
-        'actions': selectedActions
+        'actions': state
       }),
     );
+    _reportIfUnauthorized(response);
     return response.statusCode == 200;
   }
 
   Future<String> triggerMiddayCheck(int energyLevel) async {
     final response = await http.post(
       Uri.parse('$baseUrl/midday'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
-        'userId': userId,
         'date': DateTime.now().toIso8601String().split('T')[0],
         'energyLevel': energyLevel
       }),
     );
+    _reportIfUnauthorized(response);
     if (response.statusCode == 200) {
       return jsonDecode(response.body)['message'];
     }

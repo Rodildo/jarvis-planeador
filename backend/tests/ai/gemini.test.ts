@@ -1,30 +1,25 @@
 import { generateBlueprint } from '../../src/ai/gemini';
-import { GoogleGenAI } from '@google/genai';
 
-jest.mock('@google/genai', () => {
-    return {
-        GoogleGenAI: jest.fn().mockImplementation(() => {
-            return {
-                models: {
-                    generateContent: jest.fn().mockResolvedValue({
-                        text: '{"goals": ["Test Goal"], "daily_routine": "Wake up at 6am"}'
-                    })
-                }
-            };
-        })
-    };
-});
-
-describe('Gemini AI Layer', () => {
+describe('Gemini AI Layer (OpenRouter)', () => {
     beforeEach(() => {
-        jest.clearAllMocks();
-        process.env.GEMINI_API_KEY = 'mocked_test_key';
+        jest.restoreAllMocks();
+        process.env.OPENROUTER_API_KEY = 'mocked_test_key';
     });
 
     it('should generate a structured life blueprint based on answers', async () => {
-        const mockAnswers = { "goals": "To be more organized", "condition": "bipolar" };
+        const mockAnswers = { goals: 'To be more organized', condition: 'bipolar' };
+
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                choices: [
+                    { message: { content: '{"goals": ["Test Goal"], "daily_routine": "Wake up at 6am"}' } }
+                ]
+            })
+        }) as unknown as typeof fetch;
+
         const result = await generateBlueprint(mockAnswers);
-        
+
         expect(result).toHaveProperty('goals');
         expect(result.goals).toContain('Test Goal');
         expect(result).toHaveProperty('daily_routine');

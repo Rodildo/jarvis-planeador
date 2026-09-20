@@ -6,6 +6,19 @@ import 'package:google_fonts/google_fonts.dart';
 import 'providers/chat_provider.dart';
 import 'widgets/jarvis_drawer.dart';
 
+class _BlockSpec {
+  final String key;
+  final String label;
+  final Color color;
+  const _BlockSpec(this.key, this.label, this.color);
+}
+
+const List<_BlockSpec> _blocks = [
+  _BlockSpec('morning', 'AL LEVANTARTE', Color(0xFF00E5FF)),
+  _BlockSpec('midday', 'DURANTE EL DÍA', Color(0xFFFFD700)),
+  _BlockSpec('night', 'AL FINAL DEL DÍA', Color(0xFFFF007F)),
+];
+
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
 
@@ -14,93 +27,163 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final TextEditingController _energyController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _energyController.addListener(() {
-      setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    _energyController.dispose();
-    super.dispose();
-  }
-
-  void _handleSubmit(ChatProvider provider) {
+  void _selectEnergy(int level, ChatProvider provider) {
     if (provider.isLoading) return;
-    
+
     if (provider.showMiddayInput) {
-      provider.triggerMiddayCheck(_energyController.text);
+      provider.triggerMiddayCheck(level.toString());
     } else {
-      provider.requestBriefing(_energyController.text);
+      provider.requestDailyPlan(level.toString());
     }
   }
 
-
-
-  Widget _buildOptionCard(String goal, dynamic option, ChatProvider provider) {
-    bool isSelected = provider.selectedActions[goal] == option;
-    
-    String intensity = option['level'] ?? option['intensity'] ?? 'Media';
-    
-    Color intensityColor;
-    switch(intensity) {
-      case 'Suave': intensityColor = const Color(0xFF00E5FF); break; // Cyan
-      case 'Intensa': intensityColor = const Color(0xFFFF007F); break; // Neon Pink
-      default: intensityColor = const Color(0xFFFFD700); // Gold
-    }
-
+  Widget _buildEnergyButton(int level, ChatProvider provider) {
     return GestureDetector(
-      onTap: () => provider.toggleAction(goal, option),
+      onTap: () => _selectEnergy(level, provider),
       child: Container(
-        margin: const EdgeInsets.only(right: 16),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: isSelected ? intensityColor.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.05),
-                border: Border.all(
-                  color: isSelected ? intensityColor.withValues(alpha: 0.5) : Colors.white.withValues(alpha: 0.1),
-                  width: isSelected ? 1.5 : 1
-                ),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(intensity, style: GoogleFonts.outfit(color: intensityColor, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 10),
-                  Text(option['action'] ?? '', 
-                    style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.4), 
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      const Icon(Icons.timer_outlined, size: 14, color: Colors.white54),
-                      const SizedBox(width: 4),
-                      Text(option['time_estimate'] ?? '-- min', style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                    ],
-                  )
-                ],
-              ),
-            ),
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
+          shape: BoxShape.circle,
+          border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.5)),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          level.toString(),
+          style: GoogleFonts.outfit(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold, fontSize: 20),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showAddTaskDialog(BuildContext context, String block, ChatProvider provider) async {
+    final controller = TextEditingController();
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF131B2F),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Agregar tarea', style: GoogleFonts.outfit(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: 'Escribe tu tarea...',
+            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+          ),
+          onSubmitted: (value) {
+            provider.addManualTask(block, value);
+            Navigator.pop(dialogContext);
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text('Cancelar', style: GoogleFonts.inter(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () {
+              provider.addManualTask(block, controller.text);
+              Navigator.pop(dialogContext);
+            },
+            child: Text('Agregar', style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTaskTile({
+    required String id,
+    required String text,
+    String? reason,
+    required Color color,
+    required ChatProvider provider,
+    bool isManual = false,
+  }) {
+    final done = provider.completed[id] ?? false;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: done ? color.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: done ? color.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: ListTile(
+        onTap: () => provider.toggleTaskDone(id),
+        leading: Icon(done ? Icons.check_circle : Icons.radio_button_unchecked, color: done ? color : Colors.white38),
+        title: Text(
+          text,
+          style: GoogleFonts.inter(
+            color: done ? Colors.white38 : Colors.white,
+            decoration: done ? TextDecoration.lineThrough : null,
+            fontSize: 14,
           ),
         ),
-      ).animate().scale(duration: 200.ms, curve: Curves.easeOut),
+        subtitle: (reason != null && reason.isNotEmpty)
+            ? Text(reason, style: GoogleFonts.inter(color: Colors.white38, fontSize: 12))
+            : null,
+        trailing: isManual
+            ? IconButton(
+                icon: const Icon(Icons.close, color: Colors.white38, size: 18),
+                onPressed: () => provider.removeManualTask(id),
+              )
+            : null,
+      ),
+    ).animate().fadeIn(duration: 200.ms);
+  }
+
+  Widget _buildBlockSection(_BlockSpec block, ChatProvider provider) {
+    final aiTasks = (provider.plan?[block.key] as List?) ?? [];
+    final manualForBlock = provider.manualTasks.where((t) => t['block'] == block.key).toList();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(block.label, style: GoogleFonts.outfit(color: block.color, fontWeight: FontWeight.w600, letterSpacing: 1.5)),
+              GestureDetector(
+                onTap: () => _showAddTaskDialog(context, block.key, provider),
+                child: Icon(Icons.add_circle_outline, color: block.color, size: 20),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          for (int i = 0; i < aiTasks.length; i++)
+            _buildTaskTile(
+              id: 'ai-${block.key}-$i',
+              text: aiTasks[i]['task']?.toString() ?? '',
+              reason: aiTasks[i]['reason']?.toString(),
+              color: block.color,
+              provider: provider,
+            ),
+          for (final task in manualForBlock)
+            _buildTaskTile(
+              id: task['id'].toString(),
+              text: task['text']?.toString() ?? '',
+              color: block.color,
+              provider: provider,
+              isManual: true,
+            ),
+          if (aiTasks.isEmpty && manualForBlock.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text('Sin tareas para este bloque todavía.', style: GoogleFonts.inter(color: Colors.white38, fontSize: 13)),
+            ),
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ChatProvider>();
-    bool canConfirm = provider.morningOptions != null && provider.selectedActions.length == provider.morningOptions!.keys.length;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -159,7 +242,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           ),
                           const SizedBox(width: 16),
                           Expanded(
-                            child: Text(provider.jarvisMessage, 
+                            child: Text(provider.jarvisMessage,
                               style: GoogleFonts.inter(color: Colors.white, fontSize: 15, height: 1.5)
                             ),
                           ),
@@ -176,89 +259,21 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: CircularProgressIndicator(color: Color(0xFF00E5FF), strokeWidth: 2),
                 ).animate().fadeIn(),
 
-              // Render Morning Options or Selected Habits
-              if (provider.morningOptions != null)
+              // Guía del día: 3 bloques (al levantarte / durante el día / al final del día)
+              if (provider.plan != null)
                 Expanded(
                   child: ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     children: [
-                      if (provider.dayStarted)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 20),
-                          child: Text("TUS HÁBITOS DE HOY", style: GoogleFonts.outfit(color: const Color(0xFFFF007F), fontWeight: FontWeight.w600, letterSpacing: 1.5)),
-                        ),
-                      ...provider.morningOptions!.entries.map((entry) {
-                        // If day started, only show the selected action for this goal
-                        if (provider.dayStarted) {
-                          final selectedOption = provider.selectedActions[entry.key];
-                          if (selectedOption == null) return const SizedBox.shrink();
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 24),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: Text(entry.key.toUpperCase(), style: GoogleFonts.outfit(color: const Color(0xFFFF007F), fontWeight: FontWeight.w600, letterSpacing: 1.5)),
-                                ),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: _buildOptionCard(entry.key, selectedOption, provider)
-                                ),
-                              ]
-                            )
-                          );
-                        }
-
-                        // Otherwise show all options for selection
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 20),
-                              child: Text(entry.key.toUpperCase(), style: GoogleFonts.outfit(color: const Color(0xFF00E5FF), fontWeight: FontWeight.w600, letterSpacing: 1.5)),
-                            ),
-                            SizedBox(
-                              height: 170,
-                              child: ListView.builder(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: (entry.value as List).length,
-                                  itemBuilder: (context, index) {
-                                    return SizedBox(
-                                      width: 170,
-                                      child: _buildOptionCard(entry.key, entry.value[index], provider)
-                                    );
-                                  },
-                              ),
-                            ),
-                          ],
-                        );
-                      }).toList(),
+                      for (final block in _blocks) _buildBlockSection(block, provider),
+                      const SizedBox(height: 20),
                     ],
                   ),
                 )
               else
                 const Spacer(),
 
-              // Confirm Button
-              if (canConfirm && !provider.dayStarted)
-                Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: ElevatedButton(
-                    onPressed: provider.confirmDay,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00E5FF),
-                      foregroundColor: const Color(0xFF070B14),
-                      minimumSize: const Size(double.infinity, 55),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      elevation: 10,
-                      shadowColor: const Color(0xFF00E5FF).withValues(alpha: 0.5),
-                    ),
-                    child: Text('Confirmar Selección', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
-                  ).animate().fadeIn().moveY(begin: 10, end: 0),
-                ),
-
-              // Midday Simulator Button
+              // Chequeo de energía a mitad de día
               if (provider.dayStarted && !provider.showMiddayInput)
                 Padding(
                   padding: const EdgeInsets.all(20.0),
@@ -272,12 +287,12 @@ class _ChatScreenState extends State<ChatScreen> {
                       elevation: 10,
                       shadowColor: const Color(0xFFFF007F).withValues(alpha: 0.5),
                     ),
-                    child: Text('Simular Check-in (+6 horas)', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
+                    child: Text('Chequeo de energía ahora', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
                   ).animate().fadeIn().moveY(begin: 10, end: 0),
                 ),
 
-              // Input Area (Glassmorphic)
-              if (provider.morningOptions == null || provider.showMiddayInput)
+              // Input Area (Glassmorphic) - selector de energía 1 a 5
+              if (provider.plan == null || provider.showMiddayInput)
                 ClipRRect(
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
@@ -288,39 +303,9 @@ class _ChatScreenState extends State<ChatScreen> {
                         border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
                       ),
                       child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _energyController,
-                              style: GoogleFonts.inter(color: Colors.white),
-                              decoration: InputDecoration(
-                                hintText: 'Nivel de energía (1-5)...',
-                                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
-                                filled: true,
-                                fillColor: Colors.white.withValues(alpha: 0.05),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                              ),
-                              onSubmitted: (_) => _handleSubmit(provider),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          GestureDetector(
-                            onTap: () => _handleSubmit(provider),
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
-                                shape: BoxShape.circle,
-                                border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.5)),
-                              ),
-                              child: const Icon(
-                                Icons.send, 
-                                color: Color(0xFF00E5FF),
-                                size: 22
-                              ),
-                            ),
-                          ),
+                          for (int level = 1; level <= 5; level++) _buildEnergyButton(level, provider),
                         ],
                       ),
                     ),

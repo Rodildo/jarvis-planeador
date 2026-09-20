@@ -55,7 +55,18 @@ export const initDB = async (dbPath: string = './data/jarvis.sqlite'): Promise<v
                         )
                     `, (err) => {
                         if (err) reject(err);
-                        resolve();
+
+                        db.run(`
+                            CREATE TABLE IF NOT EXISTS users (
+                                id TEXT PRIMARY KEY,
+                                email TEXT UNIQUE NOT NULL,
+                                password_hash TEXT NOT NULL,
+                                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                            )
+                        `, (err) => {
+                            if (err) reject(err);
+                            resolve();
+                        });
                     });
                 });
             });
@@ -79,6 +90,15 @@ export const getBlueprint = async (userId: string): Promise<string | null> => {
         db.get(`SELECT blueprint_data FROM blueprints WHERE user_id = ?`, [userId], (err, row: any) => {
             if (err) reject(err);
             else resolve(row ? row.blueprint_data : null);
+        });
+    });
+};
+
+export const getBlueprintUpdatedAt = async (userId: string): Promise<string | null> => {
+    return new Promise((resolve, reject) => {
+        db.get(`SELECT updated_at FROM blueprints WHERE user_id = ?`, [userId], (err, row: any) => {
+            if (err) reject(err);
+            else resolve(row ? row.updated_at : null);
         });
     });
 };
@@ -122,6 +142,15 @@ export const getOnboardingProgress = async (userId: string): Promise<any[] | nul
     });
 };
 
+export const clearOnboardingProgress = async (userId: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        db.run(`DELETE FROM onboarding_progress WHERE user_id = ?`, [userId], (err: Error | null) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+};
+
 export const saveMorningLog = async (userId: string, date: string, level: number): Promise<void> => {
     return new Promise((resolve, reject) => {
         const stmt = db.prepare(`INSERT INTO daily_logs (user_id, date, energy_morning, morning_time) VALUES (?, ?, ?, CURRENT_TIMESTAMP) ON CONFLICT(user_id, date) DO UPDATE SET energy_morning = excluded.energy_morning, morning_time = excluded.morning_time`);
@@ -144,7 +173,7 @@ export const saveMiddayLog = async (userId: string, date: string, level: number)
     });
 };
 
-export const saveDailyActions = async (userId: string, date: string, actions: string[]): Promise<void> => {
+export const saveDailyActions = async (userId: string, date: string, actions: any): Promise<void> => {
     return new Promise((resolve, reject) => {
         const stmt = db.prepare(`UPDATE daily_logs SET actions_chosen = ? WHERE user_id = ? AND date = ?`);
         stmt.run(JSON.stringify(actions), userId, date, (err: Error | null) => {
@@ -158,6 +187,45 @@ export const saveDailyActions = async (userId: string, date: string, actions: st
 export const getDailyLog = async (userId: string, date: string): Promise<any | null> => {
     return new Promise((resolve, reject) => {
         db.get(`SELECT * FROM daily_logs WHERE user_id = ? AND date = ?`, [userId, date], (err, row: any) => {
+            if (err) reject(err);
+            else resolve(row || null);
+        });
+    });
+};
+
+export const getRecentDailyLogs = async (userId: string, days: number): Promise<any[]> => {
+    return new Promise((resolve, reject) => {
+        db.all(
+            `SELECT * FROM daily_logs WHERE user_id = ? ORDER BY date DESC LIMIT ?`,
+            [userId, days],
+            (err, rows: any[]) => {
+                if (err) reject(err);
+                else resolve(rows || []);
+            }
+        );
+    });
+};
+
+export const createUser = async (id: string, email: string, passwordHash: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        const stmt = db.prepare(`INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)`);
+        stmt.run(id, email, passwordHash, (err: Error | null) => {
+            stmt.finalize();
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+};
+
+export interface UserRecord {
+    id: string;
+    email: string;
+    password_hash: string;
+}
+
+export const getUserByEmail = async (email: string): Promise<UserRecord | null> => {
+    return new Promise((resolve, reject) => {
+        db.get(`SELECT id, email, password_hash FROM users WHERE email = ?`, [email], (err, row: any) => {
             if (err) reject(err);
             else resolve(row || null);
         });

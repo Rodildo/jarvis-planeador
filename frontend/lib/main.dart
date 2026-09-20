@@ -4,41 +4,59 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'providers/auth_provider.dart';
 import 'providers/onboarding_provider.dart';
 import 'providers/chat_provider.dart';
 import 'routes/app_router.dart';
 import 'core/api_service.dart';
+import 'core/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await ApiService.loadStoredToken();
+
   final prefs = await SharedPreferences.getInstance();
-  bool hasBlueprint = prefs.getBool('has_blueprint') ?? false;
-  
-  if (!hasBlueprint) {
-    // Si no está en local, verificamos en el backend por si reinstaló la app
-    final api = ApiService();
-    hasBlueprint = await api.checkProfile();
-    if (hasBlueprint) {
-      await prefs.setBool('has_blueprint', true);
+  bool hasBlueprint = false;
+
+  if (ApiService.isLoggedIn) {
+    hasBlueprint = prefs.getBool('has_blueprint') ?? false;
+    if (!hasBlueprint) {
+      // Si no está en local, verificamos en el backend por si reinstaló la app
+      hasBlueprint = await ApiService().checkProfile();
+      if (hasBlueprint) {
+        await prefs.setBool('has_blueprint', true);
+      }
     }
   }
-  
-  final initialLocation = hasBlueprint ? '/chat' : '/onboarding';
+
+  final initialLocation = !ApiService.isLoggedIn
+      ? '/login'
+      : (hasBlueprint ? '/chat' : '/onboarding');
+  final router = getAppRouter(initialLocation);
+
+  // Si el token queda inválido/vencido en cualquier llamada, volvemos a login.
+  ApiService.onUnauthorized = () => router.go('/login');
+
+  await NotificationService.instance.init(router);
+  if (ApiService.isLoggedIn && hasBlueprint) {
+    await NotificationService.instance.scheduleMorningReminder();
+  }
 
   runApp(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => OnboardingProvider()),
         ChangeNotifierProvider(create: (_) => ChatProvider()),
       ],
-      child: JarvisApp(initialLocation: initialLocation),
+      child: JarvisApp(router: router),
     ),
   );
 }
 
 class JarvisApp extends StatelessWidget {
-  final String initialLocation;
-  const JarvisApp({super.key, required this.initialLocation});
+  final RouterConfig<Object> router;
+  const JarvisApp({super.key, required this.router});
 
   @override
   Widget build(BuildContext context) {
@@ -58,7 +76,7 @@ class JarvisApp extends StatelessWidget {
           displayColor: Colors.white,
         ),
       ),
-      routerConfig: getAppRouter(initialLocation),
+      routerConfig: router,
     );
   }
 }

@@ -2,3 +2,28 @@ node_modules/
 dist/
 .env
 *.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# ts-node runs .ts directly (see Dockerfile/package.json); these are stale
+# build byproducts left behind by editor/tsc runs and should never be committed.
+src/**/*.js
+src/**/*.js.map
+src/**/*.d.ts
+src/**/*.d.ts.map
+tests/**/*.js
+tests/**/*.js.map
+tests/**/*.d.ts
+tests/**/*.d.ts.map
+seed.js
+seed.js.map
+seed.d.ts
+seed.d.ts.map
+test-models.js
+test-models.js.map
+test-models.d.ts
+test-models.d.ts.map
+test_morning.js
+test_morning.js.map
+test_morning.d.ts
+test_morning.d.ts.map

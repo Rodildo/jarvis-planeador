@@ -1,19 +1,71 @@
 import { Router } from 'express';
-import multer from 'multer';
-import { generateBlueprint, generateMorningOptions, generateMidDayAdjustment, generateNextOnboardingQuestion, transcribeAudio } from '../ai/gemini';
-import { saveBlueprint, getBlueprint, saveMorningLog, saveMiddayLog, saveDailyActions, getDailyLog, hasBlueprint, saveOnboardingProgress, getOnboardingProgress } from '../db/database';
+import crypto from 'crypto';
+import { generateBlueprint, generateDailyPlan, generateMidDayAdjustment, generateNextOnboardingQuestion, LIFE_AREAS } from '../ai/gemini';
+import {
+    saveBlueprint, getBlueprint, getBlueprintUpdatedAt, saveMorningLog, saveMiddayLog, saveDailyActions, getDailyLog,
+    getRecentDailyLogs, hasBlueprint, saveOnboardingProgress, getOnboardingProgress, clearOnboardingProgress,
+    createUser, getUserByEmail
+} from '../db/database';
+import { requireAuth, hashPassword, verifyPassword, signToken, AuthedRequest } from '../auth/auth';
 
-const upload = multer({ storage: multer.memoryStorage() });
 export const apiRouter = Router();
 
 apiRouter.get('/version', (req, res) => {
-    res.json({ version: '3.0.0-openrouter' });
+    res.json({ version: '5.0.0-life-guide' });
 });
 
-apiRouter.get('/profile/:userId', async (req, res) => {
+apiRouter.get('/life-areas', (req, res) => {
+    res.status(200).json({ success: true, areas: LIFE_AREAS });
+});
+
+apiRouter.post('/auth/register', async (req, res) => {
     try {
-        const userId = req.params.userId;
-        const complete = await hasBlueprint(userId);
+        const { email, password } = req.body;
+        if (!email || !password) return res.status(400).json({ error: 'email and password are required' });
+        if (String(password).length < 8) return res.status(400).json({ error: 'password must be at least 8 characters' });
+
+        const existing = await getUserByEmail(email);
+        if (existing) return res.status(409).json({ error: 'Email already registered' });
+
+        const id = crypto.randomUUID();
+        const passwordHash = await hashPassword(password);
+        await createUser(id, email, passwordHash);
+
+        const token = signToken(id);
+        res.status(201).json({ success: true, token, userId: id });
+    } catch (error: any) {
+        console.error('Register Error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
+
+apiRouter.post('/auth/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        if (!email || !password) return res.status(400).json({ error: 'email and password are required' });
+
+        const user = await getUserByEmail(email);
+        if (!user) return res.status(401).json({ error: 'Invalid email or password' });
+
+        const valid = await verifyPassword(password, user.password_hash);
+        if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
+
+        const token = signToken(user.id);
+        res.status(200).json({ success: true, token, userId: user.id });
+    } catch (error: any) {
+        console.error('Login Error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
+
+// Todo lo que sigue requiere un token válido; el userId sale de ahí, nunca
+// de un parámetro/body que el cliente podría falsificar para leer datos
+// ajenos.
+apiRouter.use(requireAuth);
+
+apiRouter.get('/profile', async (req: AuthedRequest, res) => {
+    try {
+        const complete = await hasBlueprint(req.userId!);
         res.status(200).json({ success: true, hasBlueprint: complete });
     } catch (error: any) {
         console.error('Profile Check Error:', error);
@@ -21,12 +73,12 @@ apiRouter.get('/profile/:userId', async (req, res) => {
     }
 });
 
-apiRouter.get('/blueprint/:userId', async (req, res) => {
+apiRouter.get('/blueprint', async (req: AuthedRequest, res) => {
     try {
-        const userId = req.params.userId;
-        const blueprint = await getBlueprint(userId);
+        const blueprint = await getBlueprint(req.userId!);
         if (blueprint) {
-            res.status(200).json({ success: true, blueprint: JSON.parse(blueprint) });
+            const updatedAt = await getBlueprintUpdatedAt(req.userId!);
+            res.status(200).json({ success: true, blueprint: JSON.parse(blueprint), updatedAt });
         } else {
             res.status(404).json({ error: 'Blueprint not found' });
         }
@@ -36,10 +88,9 @@ apiRouter.get('/blueprint/:userId', async (req, res) => {
     }
 });
 
-apiRouter.get('/onboarding/progress/:userId', async (req, res) => {
+apiRouter.get('/onboarding/progress', async (req: AuthedRequest, res) => {
     try {
-        const userId = req.params.userId;
-        const messages = await getOnboardingProgress(userId);
+        const messages = await getOnboardingProgress(req.userId!);
         res.status(200).json({ success: true, messages: messages || [] });
     } catch (error: any) {
         console.error('Get Onboarding Progress Error:', error);
@@ -47,11 +98,11 @@ apiRouter.get('/onboarding/progress/:userId', async (req, res) => {
     }
 });
 
-apiRouter.post('/onboarding/progress', async (req, res) => {
+apiRouter.post('/onboarding/progress', async (req: AuthedRequest, res) => {
     try {
-        const { userId, messages } = req.body;
-        if (!userId || !messages) return res.status(400).json({ error: 'userId and messages are required' });
-        await saveOnboardingProgress(userId, messages);
+        const { messages } = req.body;
+        if (!messages) return res.status(400).json({ error: 'messages is required' });
+        await saveOnboardingProgress(req.userId!, messages);
         res.status(200).json({ success: true });
     } catch (error: any) {
         console.error('Save Onboarding Progress Error:', error);
@@ -59,12 +110,18 @@ apiRouter.post('/onboarding/progress', async (req, res) => {
     }
 });
 
-apiRouter.post('/assessment', async (req, res) => {
+apiRouter.post('/assessment', async (req: AuthedRequest, res) => {
     try {
-        const { userId, answers } = req.body;
-        if (!userId || !answers) return res.status(400).json({ error: 'userId and answers are required' });
-        const blueprint = await generateBlueprint(answers);
+        const { answers } = req.body;
+        if (!answers) return res.status(400).json({ error: 'answers is required' });
+
+        const userId = req.userId!;
+        // Si ya existía un blueprint (re-brief mensual), se lo pasamos como
+        // contexto para que el plan evolucione en vez de partir de cero.
+        const existingBlueprint = await getBlueprint(userId);
+        const blueprint = await generateBlueprint(answers, existingBlueprint ? JSON.parse(existingBlueprint) : undefined);
         await saveBlueprint(userId, JSON.stringify(blueprint));
+        await clearOnboardingProgress(userId);
         res.status(200).json({ success: true, blueprint });
     } catch (error: any) {
         console.error('Assessment Error:', error);
@@ -75,55 +132,62 @@ apiRouter.post('/assessment', async (req, res) => {
 apiRouter.post('/onboarding/question', async (req, res) => {
     try {
         const { previousQA } = req.body;
-        const question = await generateNextOnboardingQuestion(previousQA || []);
-        res.status(200).json({ success: true, question });
+        const result = await generateNextOnboardingQuestion(previousQA || []);
+        res.status(200).json({ success: true, ...result });
     } catch (error: any) {
         console.error('Onboarding Error:', error);
         res.status(500).json({ error: error.stack || String(error) || 'Internal server error' });
     }
 });
 
-apiRouter.post('/transcribe', upload.single('audio'), async (req, res) => {
+apiRouter.get('/daily-log/:date', async (req: AuthedRequest, res) => {
     try {
-        if (!req.file) {
-            return res.status(400).json({ error: 'No audio file provided' });
-        }
-        
-        const base64Audio = req.file.buffer.toString('base64');
-        const mimeType = req.file.mimetype;
-        
-        const transcription = await transcribeAudio(base64Audio, mimeType);
-        res.status(200).json({ success: true, text: transcription });
+        const date = req.params.date;
+        if (!date || Array.isArray(date)) return res.status(400).json({ error: 'date is required' });
+        const dailyLog = await getDailyLog(req.userId!, date);
+        res.status(200).json({ success: true, dailyLog });
     } catch (error: any) {
-        console.error('Transcription Error:', error);
-        res.status(500).json({ error: error.stack || String(error) || 'Internal server error' });
+        console.error('Get Daily Log Error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
     }
 });
 
-apiRouter.post('/briefing', async (req, res) => {
+apiRouter.get('/history', async (req: AuthedRequest, res) => {
     try {
-        const { userId, date, energyLevel } = req.body;
-        if (!userId || !date || energyLevel === undefined) return res.status(400).json({ error: 'userId, date, and energyLevel are required' });
-        
+        const days = Math.min(parseInt(String(req.query.days ?? '30'), 10) || 30, 90);
+        const logs = await getRecentDailyLogs(req.userId!, days);
+        res.status(200).json({ success: true, logs });
+    } catch (error: any) {
+        console.error('Get History Error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
+
+apiRouter.post('/daily-plan', async (req: AuthedRequest, res) => {
+    try {
+        const { date, energyLevel } = req.body;
+        if (!date || energyLevel === undefined) return res.status(400).json({ error: 'date and energyLevel are required' });
+
+        const userId = req.userId!;
         await saveMorningLog(userId, date, energyLevel);
-        
+
         const blueprintData = await getBlueprint(userId);
         if (!blueprintData) return res.status(404).json({ error: 'Blueprint not found for user' });
-        
-        const optionsJson = await generateMorningOptions(JSON.parse(blueprintData), energyLevel);
-        res.status(200).json({ success: true, briefing: optionsJson });
+
+        const plan = await generateDailyPlan(JSON.parse(blueprintData), energyLevel);
+        res.status(200).json({ success: true, plan });
     } catch (error: any) {
-        console.error('Briefing Error:', error);
+        console.error('Daily Plan Error:', error);
         res.status(500).json({ error: error.stack || String(error) || 'Internal server error' });
     }
 });
 
-apiRouter.post('/daily-actions', async (req, res) => {
+apiRouter.post('/daily-actions', async (req: AuthedRequest, res) => {
     try {
-        const { userId, date, actions } = req.body;
-        if (!userId || !date || !actions) return res.status(400).json({ error: 'Missing required fields' });
-        
-        await saveDailyActions(userId, date, actions);
+        const { date, actions } = req.body;
+        if (!date || !actions) return res.status(400).json({ error: 'Missing required fields' });
+
+        await saveDailyActions(req.userId!, date, actions);
         res.status(200).json({ success: true });
     } catch (error: any) {
         console.error('Save Actions Error:', error);
@@ -131,22 +195,23 @@ apiRouter.post('/daily-actions', async (req, res) => {
     }
 });
 
-apiRouter.post('/midday', async (req, res) => {
+apiRouter.post('/midday', async (req: AuthedRequest, res) => {
     try {
-        const { userId, date, energyLevel } = req.body;
-        if (!userId || !date || energyLevel === undefined) return res.status(400).json({ error: 'Missing fields' });
-        
+        const { date, energyLevel } = req.body;
+        if (!date || energyLevel === undefined) return res.status(400).json({ error: 'Missing fields' });
+
+        const userId = req.userId!;
         await saveMiddayLog(userId, date, energyLevel);
-        
+
         const dailyLog = await getDailyLog(userId, date);
         const blueprintData = await getBlueprint(userId);
-        
+
         if (!dailyLog || !blueprintData) return res.status(404).json({ error: 'Missing log or blueprint' });
-        
-        let chosenActions = [];
-        if (dailyLog.actions_chosen) chosenActions = JSON.parse(dailyLog.actions_chosen);
-        
-        const message = await generateMidDayAdjustment(JSON.parse(blueprintData), dailyLog.energy_morning, energyLevel, chosenActions);
+
+        let dailyState: any = {};
+        if (dailyLog.actions_chosen) dailyState = JSON.parse(dailyLog.actions_chosen);
+
+        const message = await generateMidDayAdjustment(JSON.parse(blueprintData), dailyLog.energy_morning, energyLevel, dailyState.plan ?? dailyState);
         res.status(200).json({ success: true, message });
     } catch (error: any) {
         console.error('Midday Error:', error);

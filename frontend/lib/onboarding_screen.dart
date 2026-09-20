@@ -64,6 +64,38 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         child: SafeArea(
           child: Column(
             children: [
+              if (provider.currentAreaLabel != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Área ${provider.currentAreaIndex + 1}/5 · ${provider.currentAreaLabel}',
+                            style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
+                          ),
+                          Text(
+                            '${provider.questionCount}/${provider.maxQuestions}',
+                            style: GoogleFonts.inter(color: Colors.white38, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: provider.questionCount / provider.maxQuestions,
+                          minHeight: 4,
+                          backgroundColor: Colors.white.withValues(alpha: 0.08),
+                          color: const Color(0xFF00E5FF),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               Expanded(
                 child: ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),

@@ -1,9 +1,0 @@
-export declare const closeDB: () => Promise<void>;
-export declare const initDB: (dbPath?: string) => Promise<void>;
-export declare const saveBlueprint: (userId: string, data: string) => Promise<void>;
-export declare const getBlueprint: (userId: string) => Promise<string | null>;
-export declare const saveMorningLog: (userId: string, date: string, level: number) => Promise<void>;
-export declare const saveMiddayLog: (userId: string, date: string, level: number) => Promise<void>;
-export declare const saveDailyActions: (userId: string, date: string, actions: string[]) => Promise<void>;
-export declare const getDailyLog: (userId: string, date: string) => Promise<any | null>;
-//# sourceMappingURL=database.d.ts.map

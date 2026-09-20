@@ -1,11 +1,21 @@
-import { generateMorningOptions } from './src/ai/gemini';
+import { generateDailyPlan } from './src/ai/gemini';
 import * as dotenv from 'dotenv';
 dotenv.config();
 
 async function run() {
-    const blueprint = {"goals":["Professional Skill Development","Physical Health Improvement","Work-Life Balance Optimization","Financial Stability"],"daily_routine":"Wake up at 6 AM, morning exercise 6:30-7:15, healthy breakfast 7:30, deep work 8:30-12:00, nutritious lunch 12:30, skill development 14:00-16:00, family/social time 17:00-19:00, light reading/planning 20:00-21:00, sleep by 22:00"};
+    const blueprint = {
+        life_vision: "Construir una carrera técnica sólida mientras cuida su salud física y mental.",
+        areas: {
+            salud: { summary: "Energía irregular, busca rutinas sostenibles.", goals: ["Hacer ejercicio 3x/semana", "Dormir 7-8 horas"] },
+            carrera_finanzas: { summary: "Quiere crecer profesionalmente.", goals: ["Mejorar skills técnicos", "Ahorrar 10% del ingreso"] },
+            relaciones: { summary: "Valora el tiempo en familia.", goals: ["Cenar en familia 3x/semana"] },
+            crecimiento: { summary: "Busca hábitos consistentes.", goals: ["Leer 15 min al día"] },
+            proposito: { summary: "Busca balance vida-trabajo.", goals: ["Definir su propósito a 5 años"] },
+        },
+        daily_routine: "Despertar 6 AM, ejercicio, trabajo profundo en la mañana, tiempo en familia en la noche.",
+    };
     try {
-        const res = await generateMorningOptions(blueprint, 3);
+        const res = await generateDailyPlan(blueprint, 3);
         console.log("Success:", JSON.stringify(res, null, 2));
     } catch (e) {
         console.error("Error:", e);

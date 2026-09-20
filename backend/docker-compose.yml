@@ -3,9 +3,10 @@ services:
   backend:
     build: .
     ports:
-      - "3000:3000"
+      - "80:80"
     volumes:
       - ./data:/app/data
     environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
     restart: always
