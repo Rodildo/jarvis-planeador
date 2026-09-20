@@ -24,6 +24,11 @@ class ChatProvider extends ChangeNotifier {
     NotificationService.instance.onMiddayTap = showMidday;
     NotificationService.instance.handleAppLaunchFromNotification();
     _hydrateToday();
+    // Precarga en segundo plano (sin esperar) para que, si el usuario
+    // entra a Historial o a Mi Plan Maestro, ya esté listo en caché en
+    // vez de tener que esperar el viaje de red justo en ese momento.
+    _api.getHistory(days: 365);
+    _api.getLifeBlueprint();
   }
 
   // Si el usuario ya tiene un plan generado hoy, restauramos ese estado al

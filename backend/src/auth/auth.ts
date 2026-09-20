@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
+import { getUserById } from '../db/database';
 
 const TOKEN_TTL = '90d';
 
@@ -27,7 +28,14 @@ export interface AuthedRequest extends Request {
 
 // Cada usuario solo puede leer/escribir sus propios datos: el userId sale
 // del token firmado, nunca de un parámetro que el cliente pueda falsificar.
-export const requireAuth = (req: AuthedRequest, res: Response, next: NextFunction) => {
+//
+// También verifica que ese userId siga existiendo en la base: una firma
+// válida no basta si la cuenta ya no está (borrada por el usuario, o por
+// un reseteo manual de la base de datos) — sin este chequeo, un token
+// viejo se seguía aceptando y cada endpoint fallaba más abajo con errores
+// confusos ("Missing log or blueprint") en vez de mandar al usuario
+// limpiamente de vuelta a login.
+export const requireAuth = async (req: AuthedRequest, res: Response, next: NextFunction) => {
     const header = req.headers.authorization;
     const token = header?.startsWith('Bearer ') ? header.slice(7) : null;
     if (!token) {
@@ -36,6 +44,11 @@ export const requireAuth = (req: AuthedRequest, res: Response, next: NextFunctio
     }
     try {
         const payload = jwt.verify(token, getJwtSecret()) as { userId: string };
+        const user = await getUserById(payload.userId);
+        if (!user) {
+            res.status(401).json({ error: 'Invalid or expired token' });
+            return;
+        }
         req.userId = payload.userId;
         next();
     } catch {

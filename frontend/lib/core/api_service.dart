@@ -18,6 +18,13 @@ class ApiService {
   static String? _lastName;
   static String? _avatar;
 
+  // Caché en memoria (dura lo que dura la sesión de la app, se limpia en
+  // logout). El blueprint casi no cambia (solo en un re-brief mensual) y
+  // el historial de hoy no cambia por fuera de esta misma app, así que no
+  // hay riesgo real de mostrar algo desactualizado dentro de una sesión.
+  static Map<String, dynamic>? _cachedBlueprint;
+  static List<Map<String, dynamic>>? _cachedHistory;
+
   /// Se dispara cuando cualquier llamada devuelve 401 (token vencido o
   /// revocado), para que la app pueda cerrar sesión y volver a /login.
   static VoidCallback? onUnauthorized;
@@ -56,6 +63,8 @@ class ApiService {
     ApiService._firstName = null;
     ApiService._lastName = null;
     ApiService._avatar = null;
+    ApiService._cachedBlueprint = null;
+    ApiService._cachedHistory = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenPrefsKey);
     await prefs.remove(_firstNamePrefsKey);
@@ -236,29 +245,41 @@ class ApiService {
     return null;
   }
 
-  Future<List<Map<String, dynamic>>> getHistory({int days = 30}) async {
+  /// Con caché en memoria: si ya se pidió el historial antes en esta
+  /// sesión, se devuelve al instante sin esperar otro viaje de red. Se
+  /// llama en segundo plano apenas se entra a /chat (ver ChatProvider)
+  /// para que, cuando el usuario abra Historial, ya esté listo.
+  Future<List<Map<String, dynamic>>> getHistory({int days = 30, bool forceRefresh = false}) async {
+    if (!forceRefresh && _cachedHistory != null) return _cachedHistory!;
     try {
       final response = await http.get(Uri.parse('$baseUrl/history?days=$days'), headers: _headers);
       _reportIfUnauthorized(response);
       if (response.statusCode == 200) {
-        final logs = jsonDecode(response.body)['logs'] as List;
-        return logs.cast<Map<String, dynamic>>();
+        final logs = (jsonDecode(response.body)['logs'] as List).cast<Map<String, dynamic>>();
+        _cachedHistory = logs;
+        return logs;
       }
     } catch (e) {
       print('Get history error: $e');
     }
-    return [];
+    return _cachedHistory ?? [];
   }
 
   /// Devuelve { 'blueprint': {...}, 'updatedAt': 'ISO date string' } o null
-  /// si el usuario todavía no completó su primer brief.
-  Future<Map<String, dynamic>?> getLifeBlueprint() async {
+  /// si el usuario todavía no completó su primer brief. Con caché en
+  /// memoria: justo después de terminar el brief (submitAssessment) ya
+  /// queda precargado, así que la primera vez que se abre "Mi Plan
+  /// Maestro" no hace falta esperar otro viaje de red.
+  Future<Map<String, dynamic>?> getLifeBlueprint({bool forceRefresh = false}) async {
+    if (!forceRefresh && _cachedBlueprint != null) return _cachedBlueprint;
     try {
       final response = await http.get(Uri.parse('$baseUrl/blueprint'), headers: _headers);
       _reportIfUnauthorized(response);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return {'blueprint': data['blueprint'], 'updatedAt': data['updatedAt']};
+        final result = {'blueprint': data['blueprint'], 'updatedAt': data['updatedAt']};
+        _cachedBlueprint = result;
+        return result;
       }
     } catch (e) {
       print('Get blueprint error: $e');
@@ -306,7 +327,18 @@ class ApiService {
       body: jsonEncode({'answers': jsonEncode(messages)}),
     );
     _reportIfUnauthorized(response);
-    return response.statusCode == 200;
+    if (response.statusCode != 200) return false;
+
+    // El backend no manda `updatedAt` en esta respuesta (solo lo hace el
+    // GET /blueprint); como se acaba de guardar, "ahora mismo" en UTC es
+    // exacto. Mismo formato que CURRENT_TIMESTAMP de SQLite para que
+    // blueprint_screen.dart lo parsee igual que si viniera del backend.
+    final blueprint = jsonDecode(response.body)['blueprint'];
+    if (blueprint != null) {
+      final now = DateTime.now().toUtc().toIso8601String().split('.').first.replaceFirst('T', ' ');
+      _cachedBlueprint = {'blueprint': blueprint, 'updatedAt': now};
+    }
+    return true;
   }
 
   /// Devuelve { greeting, morning: [{task, reason}], midday: [...], night: [...] }.
