@@ -35,7 +35,9 @@ class NotificationService {
       // con la zona por defecto en vez de romper el arranque de la app.
     }
 
-    const androidSettings = AndroidInitializationSettings('ic_launcher');
+    // Debe existir como drawable (no mipmap): flutter_local_notifications
+    // busca el ícono ahí y falla en el dispositivo real si no lo encuentra.
+    const androidSettings = AndroidInitializationSettings('ic_notification');
     const iosSettings = DarwinInitializationSettings();
 
     await _plugin.initialize(

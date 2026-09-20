@@ -37,9 +37,17 @@ void main() async {
   // Si el token queda inválido/vencido en cualquier llamada, volvemos a login.
   ApiService.onUnauthorized = () => router.go('/login');
 
-  await NotificationService.instance.init(router);
-  if (ApiService.isLoggedIn && hasBlueprint) {
-    await NotificationService.instance.scheduleMorningReminder();
+  // Las notificaciones son una funcionalidad secundaria: si fallan por lo
+  // que sea (ícono faltante, permisos, zona horaria en un dispositivo
+  // específico), la app debe seguir arrancando igual, nunca quedarse en
+  // pantalla en blanco por esto.
+  try {
+    await NotificationService.instance.init(router);
+    if (ApiService.isLoggedIn && hasBlueprint) {
+      await NotificationService.instance.scheduleMorningReminder();
+    }
+  } catch (e) {
+    debugPrint('Notification init failed, continuing without it: $e');
   }
 
   runApp(
