@@ -121,6 +121,27 @@ class OnboardingProvider extends ChangeNotifier {
     _api.saveOnboardingProgress(messages);
   }
 
+  bool get canGoBack => questionCount > 0 && !isLoading;
+
+  /// Descarta la pregunta actual (sin responder) y la respuesta anterior,
+  /// dejando la pregunta anterior lista para responderla de nuevo. Útil
+  /// si el usuario se equivocó y quiere corregir una respuesta anterior.
+  void goBack() {
+    if (!canGoBack) return;
+
+    if (messages.isNotEmpty && messages.last['role'] == 'jarvis') {
+      messages.removeLast();
+    }
+    if (messages.isNotEmpty && messages.last['role'] == 'user') {
+      messages.removeLast();
+      questionCount--;
+    }
+    errorMessage = null;
+    _syncAreaProgress();
+    notifyListeners();
+    _api.saveOnboardingProgress(messages);
+  }
+
   Future<bool> submitAnswer(String answer) async {
     if (answer.trim().isEmpty) return false;
 

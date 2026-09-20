@@ -52,6 +52,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
+  void _goBack(OnboardingProvider provider) {
+    _controller.clear();
+    provider.goBack();
+  }
+
   Widget _buildAnswerArea(OnboardingProvider provider) {
     final waitingToFinalize = provider.questionCount >= provider.maxQuestions;
 
@@ -251,9 +256,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'Área ${provider.currentAreaIndex + 1}/5 · ${provider.currentAreaLabel}',
-                            style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
+                          Row(
+                            children: [
+                              if (provider.canGoBack)
+                                GestureDetector(
+                                  onTap: () => _goBack(provider),
+                                  child: const Padding(
+                                    padding: EdgeInsets.only(right: 8),
+                                    child: Icon(Icons.arrow_back_ios_new, size: 14, color: Colors.white54),
+                                  ),
+                                ),
+                              Text(
+                                'Área ${provider.currentAreaIndex + 1}/5 · ${provider.currentAreaLabel}',
+                                style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
+                              ),
+                            ],
                           ),
                           Text(
                             '${provider.questionCount}/${provider.maxQuestions}',
