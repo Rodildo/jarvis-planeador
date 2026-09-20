@@ -24,6 +24,7 @@ Corre con `ts-node` directo (sin build de TypeScript a JS — `npm run build` es
 - JWT firmado con `JWT_SECRET` (env var, sin default — el server no arranca sin ella), expira a los 90 días (`TOKEN_TTL` en `auth.ts`).
 - Contraseñas con `bcryptjs`, 10 rounds.
 - El middleware `requireAuth` se monta con `apiRouter.use(requireAuth)` **después** de las rutas de `/auth/register` y `/auth/login`, así que todo lo que está definido después en el archivo queda protegido automáticamente. El `userId` sale del token decodificado (`req.userId`), **nunca** de un parámetro o body — así un usuario no puede leer/escribir datos de otro así falsifique un ID en la petición.
+- `requireAuth` es async: además de validar la firma del JWT, verifica con `getUserById` que ese usuario **siga existiendo** en la base, y devuelve 401 si no. Sin esto, un token firmado válidamente para una cuenta ya borrada (por ejemplo, tras un reseteo manual de la base con alguien todavía logueado) seguía pasando la autenticación, y cada endpoint fallaba más abajo con errores confusos en vez de un 401 limpio que el cliente ya sabe manejar (cierra sesión y manda a `/login`).
 - No hay recuperación de contraseña por email (no hay servicio de envío de correos configurado — ver [07-known-gaps.md](07-known-gaps.md)). Si alguien la olvida, queda bloqueado salvo intervención manual en la base de datos.
 
 ## Rate limiting (`express-rate-limit`, todo por IP real gracias a trust proxy)
