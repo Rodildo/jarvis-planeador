@@ -41,7 +41,7 @@ const loginLimiter = rateLimit({
 // contra un bug en el cliente que dispare llamadas en bucle.
 const aiCostLimiter = rateLimit({
     windowMs: 60 * 60 * 1000,
-    limit: 15,
+    limit: 30,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Demasiadas solicitudes a Jarvis en poco tiempo. Intenta de nuevo en un rato.' },
