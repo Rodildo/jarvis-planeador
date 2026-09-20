@@ -161,20 +161,6 @@ class ApiService {
     }
   }
 
-  /// Devuelve { question, areaKey, areaLabel, areaIndex, questionNumber, totalQuestions }.
-  Future<Map<String, dynamic>> getOnboardingQuestion(List<Map<String, String>> previousQA) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/onboarding/question'),
-      headers: _headers,
-      body: jsonEncode({'previousQA': previousQA}),
-    );
-    _reportIfUnauthorized(response);
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    }
-    throw Exception('Failed to fetch question: ${response.body}');
-  }
-
   Future<bool> submitAssessment(List<Map<String, String>> messages) async {
     final response = await http.post(
       Uri.parse('$baseUrl/assessment'),

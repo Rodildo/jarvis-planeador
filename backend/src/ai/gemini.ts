@@ -151,35 +151,3 @@ export const generateMidDayAdjustment = async (blueprint: any, morningEnergy: nu
     return await callOpenRouter(systemPrompt, userPrompt, false);
 };
 
-export interface OnboardingQuestionResult {
-    question: string;
-    areaKey: string;
-    areaLabel: string;
-    areaIndex: number;
-    questionNumber: number;
-    totalQuestions: number;
-}
-
-export const generateNextOnboardingQuestion = async (previousQA: any[]): Promise<OnboardingQuestionResult> => {
-    const answeredCount = previousQA.filter((m: any) => m && m.role === 'user').length;
-    const areaIndex = Math.min(Math.floor(answeredCount / QUESTIONS_PER_AREA), LIFE_AREAS.length - 1);
-    const questionNumber = (answeredCount % QUESTIONS_PER_AREA) + 1;
-    const area = LIFE_AREAS[areaIndex]!;
-
-    const systemPrompt = `Eres Jarvis, un terapeuta y estratega de vida altamente inteligente. Estás construyendo el "Life Blueprint" del usuario a través de una entrevista de ${TOTAL_ONBOARDING_QUESTIONS} preguntas, organizada en ${LIFE_AREAS.length} áreas de ${QUESTIONS_PER_AREA} preguntas cada una.
-    ÁREA ACTUAL: "${area.label}" (pregunta ${questionNumber} de ${QUESTIONS_PER_AREA} de esta área).
-    Genera UNA sola pregunta profunda, empática y específica de esta área, que no repita temas ya cubiertos en la conversación. No hagas una lista de preguntas ni saludes, ve directo al punto con empatía.`;
-
-    const userPrompt = `Historial completo de la conversación hasta ahora: ${JSON.stringify(previousQA)}`;
-
-    const question = await callOpenRouter(systemPrompt, userPrompt, false);
-
-    return {
-        question,
-        areaKey: area.key,
-        areaLabel: area.label,
-        areaIndex,
-        questionNumber,
-        totalQuestions: TOTAL_ONBOARDING_QUESTIONS,
-    };
-};

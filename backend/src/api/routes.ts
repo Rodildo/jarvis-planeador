@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { generateBlueprint, generateDailyPlan, generateMidDayAdjustment, generateNextOnboardingQuestion, LIFE_AREAS } from '../ai/gemini';
+import { generateBlueprint, generateDailyPlan, generateMidDayAdjustment, LIFE_AREAS } from '../ai/gemini';
 import {
     saveBlueprint, getBlueprint, getBlueprintUpdatedAt, saveMorningLog, saveMiddayLog, saveDailyActions, getDailyLog,
     getRecentDailyLogs, hasBlueprint, saveOnboardingProgress, getOnboardingProgress, clearOnboardingProgress,
@@ -125,17 +125,6 @@ apiRouter.post('/assessment', async (req: AuthedRequest, res) => {
         res.status(200).json({ success: true, blueprint });
     } catch (error: any) {
         console.error('Assessment Error:', error);
-        res.status(500).json({ error: error.stack || String(error) || 'Internal server error' });
-    }
-});
-
-apiRouter.post('/onboarding/question', async (req, res) => {
-    try {
-        const { previousQA } = req.body;
-        const result = await generateNextOnboardingQuestion(previousQA || []);
-        res.status(200).json({ success: true, ...result });
-    } catch (error: any) {
-        console.error('Onboarding Error:', error);
         res.status(500).json({ error: error.stack || String(error) || 'Internal server error' });
     }
 });

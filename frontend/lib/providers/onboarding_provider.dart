@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_service.dart';
 import '../core/notification_service.dart';
+import '../core/onboarding_questions.dart';
 
 class OnboardingProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
@@ -9,11 +10,12 @@ class OnboardingProvider extends ChangeNotifier {
   List<Map<String, String>> messages = [];
   bool isLoading = false;
   int questionCount = 0;
-  final int maxQuestions = 50;
+  final int maxQuestions = totalOnboardingQuestions;
   String? errorMessage;
 
-  // Progreso por área (5 áreas x 10 preguntas), lo manda el backend con
-  // cada pregunta para poder mostrar "Área 2/5 · Pregunta 3/10".
+  // Progreso por área (5 áreas x 10 preguntas), para mostrar
+  // "Área 2/5 · Pregunta 3/10". Viene del banco fijo de preguntas, no de
+  // la IA, así que nunca falla por red.
   String? currentAreaLabel;
   int currentAreaIndex = 0;
   int currentQuestionNumber = 0;
@@ -33,13 +35,17 @@ class OnboardingProvider extends ChangeNotifier {
         questionCount = messages.where((m) => m['role'] == 'user').length;
         if (questionCount >= maxQuestions) {
           // Si ya respondió todas pero por alguna razón no avanzó, finalizamos
-          await _finalizeOnboarding();
+          await finalizeOnboarding();
         } else if (messages.last['role'] == 'user') {
           // Si el último mensaje es del usuario, toca que Jarvis pregunte
-          await _fetchNextQuestion();
+          _fetchNextQuestion();
+        } else {
+          // El último mensaje ya es la pregunta pendiente; solo restauramos
+          // el indicador de área/progreso para que coincida.
+          _syncAreaProgress();
         }
       } else {
-        await _fetchNextQuestion();
+        _fetchNextQuestion();
       }
     } catch (e) {
       errorMessage = e.toString();
@@ -59,29 +65,30 @@ class OnboardingProvider extends ChangeNotifier {
     currentAreaIndex = 0;
     currentQuestionNumber = 0;
     notifyListeners();
-    await _fetchNextQuestion();
+    _fetchNextQuestion();
   }
 
-  Future<void> _fetchNextQuestion() async {
-    isLoading = true;
-    errorMessage = null;
-    notifyListeners();
+  void _syncAreaProgress() {
+    if (questionCount >= onboardingQuestions.length) return;
+    final q = onboardingQuestions[questionCount];
+    currentAreaLabel = q.areaLabel;
+    currentAreaIndex = questionCount ~/ questionsPerArea;
+    currentQuestionNumber = (questionCount % questionsPerArea) + 1;
+  }
 
-    try {
-      final result = await _api.getOnboardingQuestion(messages);
-      final question = result['question']?.toString() ?? '';
-      currentAreaLabel = result['areaLabel']?.toString();
-      currentAreaIndex = result['areaIndex'] is int ? result['areaIndex'] : 0;
-      currentQuestionNumber = result['questionNumber'] is int ? result['questionNumber'] : 0;
-      messages.add({'role': 'jarvis', 'text': question});
-      await _api.saveOnboardingProgress(messages);
-    } catch (e) {
-      errorMessage = e.toString();
-      messages.add({'role': 'jarvis', 'text': 'Error: $e'});
-    } finally {
-      isLoading = false;
-      notifyListeners();
-    }
+  // Pregunta local: viene de un banco fijo de 50 preguntas, no de una
+  // llamada a la IA, así que nunca puede fallar por red.
+  void _fetchNextQuestion() {
+    if (questionCount >= onboardingQuestions.length) return;
+    final q = onboardingQuestions[questionCount];
+    currentAreaLabel = q.areaLabel;
+    currentAreaIndex = questionCount ~/ questionsPerArea;
+    currentQuestionNumber = (questionCount % questionsPerArea) + 1;
+    messages.add({'role': 'jarvis', 'text': q.question});
+    notifyListeners();
+    // Se guarda en segundo plano; si falla la conexión no se pierde nada
+    // localmente, solo no queda respaldado hasta la próxima vez que ande.
+    _api.saveOnboardingProgress(messages);
   }
 
   Future<bool> submitAnswer(String answer) async {
@@ -89,22 +96,26 @@ class OnboardingProvider extends ChangeNotifier {
 
     messages.add({'role': 'user', 'text': answer});
     questionCount++;
+    errorMessage = null;
     notifyListeners();
 
     // Guardar progreso en el backend
     await _api.saveOnboardingProgress(messages);
 
     if (questionCount >= maxQuestions) {
-      return await _finalizeOnboarding();
+      return await finalizeOnboarding();
     } else {
-      await _fetchNextQuestion();
+      _fetchNextQuestion();
       return false; // Not finished yet
     }
   }
 
-  Future<bool> _finalizeOnboarding() async {
+  /// Único paso que todavía llama a la IA (genera el Life Blueprint a
+  /// partir de las 50 respuestas). Si falla por un error transitorio, no
+  /// se pierde ninguna respuesta: solo hay que reintentar este paso.
+  Future<bool> finalizeOnboarding() async {
     isLoading = true;
-    messages.add({'role': 'jarvis', 'text': 'Creando tu Life Blueprint...'});
+    errorMessage = null;
     notifyListeners();
 
     try {
@@ -117,11 +128,11 @@ class OnboardingProvider extends ChangeNotifier {
 
       return true; // Navigates to Chat
     } catch (e) {
-      errorMessage = e.toString();
-      messages.add({'role': 'jarvis', 'text': 'Error: $e'});
+      errorMessage = 'No se pudo generar tu Life Blueprint (${e.toString().replaceFirst('Exception: ', '')}). Puedes reintentar.';
+      return false;
+    } finally {
       isLoading = false;
       notifyListeners();
-      return false;
     }
   }
 }
