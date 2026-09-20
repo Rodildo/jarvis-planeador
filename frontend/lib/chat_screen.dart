@@ -54,8 +54,10 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildOptionCard(String goal, dynamic option, ChatProvider provider) {
     bool isSelected = provider.selectedActions[goal] == option;
     
+    String intensity = option['level'] ?? option['intensity'] ?? 'Media';
+    
     Color intensityColor;
-    switch(option['intensity']) {
+    switch(intensity) {
       case 'Suave': intensityColor = const Color(0xFF00E5FF); break; // Cyan
       case 'Intensa': intensityColor = const Color(0xFFFF007F); break; // Neon Pink
       default: intensityColor = const Color(0xFFFFD700); // Gold
@@ -65,7 +67,6 @@ class _ChatScreenState extends State<ChatScreen> {
       onTap: () => provider.toggleAction(goal, option),
       child: Container(
         margin: const EdgeInsets.only(right: 16),
-        width: 170,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
           child: BackdropFilter(
@@ -83,14 +84,10 @@ class _ChatScreenState extends State<ChatScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(option['intensity'] ?? 'Media', style: GoogleFonts.outfit(color: intensityColor, fontWeight: FontWeight.bold)),
+                  Text(intensity, style: GoogleFonts.outfit(color: intensityColor, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 10),
-                  Expanded(
-                    child: Text(option['action'] ?? '', 
-                      style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.4), 
-                      maxLines: 4, 
-                      overflow: TextOverflow.ellipsis
-                    ),
+                  Text(option['action'] ?? '', 
+                    style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.4), 
                   ),
                   const SizedBox(height: 10),
                   Row(
@@ -206,8 +203,20 @@ class _ChatScreenState extends State<ChatScreen> {
                           final selectedOption = provider.selectedActions[entry.key];
                           if (selectedOption == null) return const SizedBox.shrink();
                           return Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: _buildOptionCard(entry.key, selectedOption, provider),
+                            padding: const EdgeInsets.only(bottom: 24),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: Text(entry.key.toUpperCase(), style: GoogleFonts.outfit(color: const Color(0xFFFF007F), fontWeight: FontWeight.w600, letterSpacing: 1.5)),
+                                ),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: _buildOptionCard(entry.key, selectedOption, provider)
+                                ),
+                              ]
+                            )
                           );
                         }
 
@@ -224,9 +233,12 @@ class _ChatScreenState extends State<ChatScreen> {
                               child: ListView.builder(
                                 scrollDirection: Axis.horizontal,
                                 itemCount: (entry.value as List).length,
-                                itemBuilder: (context, index) {
-                                  return _buildOptionCard(entry.key, entry.value[index], provider);
-                                },
+                                  itemBuilder: (context, index) {
+                                    return SizedBox(
+                                      width: 170,
+                                      child: _buildOptionCard(entry.key, entry.value[index], provider)
+                                    );
+                                  },
                               ),
                             ),
                           ],

@@ -97,6 +97,7 @@ class ChatProvider extends ChangeNotifier {
 
   void showMidday() {
     showMiddayInput = true;
+    jarvisMessage = "Han pasado 6 horas. ¿Cómo está tu nivel de energía en este momento (1-5)?";
     notifyListeners();
   }
 
