@@ -460,6 +460,23 @@ class _AccountScreenState extends State<AccountScreen> {
                   ),
                 ],
               ),
+              _buildSectionTitle('Legal'),
+              _buildCard(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => context.push('/legal'),
+                      icon: const Icon(Icons.description_outlined, color: Color(0xFF00E5FF)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF00E5FF)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      label: Text('Privacidad y Términos', style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
               _buildSectionTitle('Zona de peligro'),
               _buildCard(
                 children: [
@@ -481,6 +498,15 @@ class _AccountScreenState extends State<AccountScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              Center(
+                child: Text(
+                  '© 2026 Kinetiqsystem. Todos los derechos reservados.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(color: Colors.white24, fontSize: 11),
+                ),
+              ),
+              const SizedBox(height: 20),
             ],
           ),
         ),

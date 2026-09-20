@@ -6,6 +6,7 @@ import '../chat_screen.dart';
 import '../blueprint_screen.dart';
 import '../history_screen.dart';
 import '../account_screen.dart';
+import '../legal_screen.dart';
 
 GoRouter getAppRouter(String initialLocation) {
   return GoRouter(
@@ -66,6 +67,16 @@ GoRouter getAppRouter(String initialLocation) {
       pageBuilder: (context, state) => CustomTransitionPage(
         key: state.pageKey,
         child: const AccountScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
+    ),
+    GoRoute(
+      path: '/legal',
+      pageBuilder: (context, state) => CustomTransitionPage(
+        key: state.pageKey,
+        child: const LegalScreen(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
         },

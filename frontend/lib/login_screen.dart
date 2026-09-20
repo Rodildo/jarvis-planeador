@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -21,6 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   bool _isRegisterMode = false;
+  bool _acceptedLegal = false;
   String? _localError;
   String? _sessionExpiredMessage;
 
@@ -56,6 +58,10 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_isRegisterMode && (firstName.isEmpty || lastName.isEmpty)) return;
     if (!_emailRegex.hasMatch(email)) {
       setState(() => _localError = 'Ingresa un correo con formato válido.');
+      return;
+    }
+    if (_isRegisterMode && !_acceptedLegal) {
+      setState(() => _localError = 'Debes aceptar la Política de Privacidad y los Términos de Uso para continuar.');
       return;
     }
 
@@ -118,6 +124,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
+                            const SizedBox(width: 6),
+                            Text('(Beta)', style: GoogleFonts.inter(color: Colors.white38, fontSize: 12)),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -160,6 +168,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         _buildTextField(_emailController, 'Correo', false),
                         const SizedBox(height: 14),
                         _buildTextField(_passwordController, 'Contraseña', true),
+                        if (_isRegisterMode) ...[
+                          const SizedBox(height: 14),
+                          _buildLegalConsentCheckbox(),
+                        ],
                         if (_localError != null || auth.errorMessage != null) ...[
                           const SizedBox(height: 14),
                           Text(_localError ?? auth.errorMessage!, style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
@@ -188,6 +200,12 @@ class _LoginScreenState extends State<LoginScreen> {
                             style: GoogleFonts.inter(color: Colors.white54, fontSize: 13),
                           ),
                         ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '© 2026 Kinetiqsystem. Todos los derechos reservados.',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(color: Colors.white24, fontSize: 10),
+                        ),
                       ],
                     ),
                   ),
@@ -197,6 +215,44 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLegalConsentCheckbox() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 24,
+          height: 24,
+          child: Checkbox(
+            value: _acceptedLegal,
+            onChanged: (value) => setState(() => _acceptedLegal = value ?? false),
+            activeColor: const Color(0xFF00E5FF),
+            checkColor: const Color(0xFF070B14),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.4)),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: GestureDetector(
+            onTap: () => setState(() => _acceptedLegal = !_acceptedLegal),
+            child: RichText(
+              text: TextSpan(
+                style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
+                children: [
+                  const TextSpan(text: 'Acepto la '),
+                  TextSpan(
+                    text: 'Política de Privacidad y los Términos de Uso',
+                    style: const TextStyle(color: Color(0xFF00E5FF), decoration: TextDecoration.underline),
+                    recognizer: TapGestureRecognizer()..onTap = () => context.push('/legal'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

@@ -207,6 +207,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            const SizedBox(width: 6),
+            Text('(Beta)', style: GoogleFonts.inter(color: Colors.white38, fontSize: 11)),
           ],
         ),
         centerTitle: true,
