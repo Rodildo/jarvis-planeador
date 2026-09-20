@@ -18,6 +18,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
   List<Map<String, dynamic>> _logs = [];
 
   static const _weekdays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  static const _weekdayFullNames = [
+    'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo',
+  ];
   static const _months = [
     'ene', 'feb', 'mar', 'abr', 'may', 'jun',
     'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
@@ -30,7 +33,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _load() async {
-    final logs = await _api.getHistory(days: 30);
+    // Un año completo: mientras más historial, más confiable el patrón por
+    // día de la semana que alimenta la predicción de mañana.
+    final logs = await _api.getHistory(days: 365);
     if (mounted) {
       setState(() {
         _logs = logs;
@@ -97,6 +102,47 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return recentLevels.reduce((a, b) => a + b) / recentLevels.length;
   }
 
+  /// Predicción de mañana basada en tu propio historial: qué tan seguido,
+  /// en el mismo día de la semana, tu energía fue alta/normal/baja. Si no
+  /// hay suficientes registros de ese día en particular, cae al patrón
+  /// general de todos tus días registrados.
+  _EnergyPrediction? _predictTomorrow() {
+    final withEnergy = _logs.where((l) => l['energy_morning'] != null).toList();
+    if (withEnergy.isEmpty) return null;
+
+    final tomorrowWeekday = DateTime.now().add(const Duration(days: 1)).weekday;
+    var sample = withEnergy.where((l) {
+      final date = DateTime.tryParse(l['date']?.toString() ?? '');
+      return date != null && date.weekday == tomorrowWeekday;
+    }).toList();
+
+    const minSampleForWeekdayPattern = 3;
+    final usedWeekdayPattern = sample.length >= minSampleForWeekdayPattern;
+    if (!usedWeekdayPattern) sample = withEnergy;
+
+    int high = 0, normal = 0, low = 0;
+    for (final log in sample) {
+      final level = log['energy_morning'];
+      final parsed = level is int ? level : int.tryParse(level.toString()) ?? 3;
+      if (parsed <= 2) {
+        low++;
+      } else if (parsed == 3) {
+        normal++;
+      } else {
+        high++;
+      }
+    }
+    final total = sample.length;
+    return _EnergyPrediction(
+      highPct: high / total * 100,
+      normalPct: normal / total * 100,
+      lowPct: low / total * 100,
+      sampleSize: total,
+      usedWeekdayPattern: usedWeekdayPattern,
+      weekday: tomorrowWeekday,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -133,10 +179,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget _buildBody() {
     return ListView.builder(
       padding: const EdgeInsets.all(20),
-      itemCount: _logs.length + 1,
+      itemCount: _logs.length + 2,
       itemBuilder: (context, index) {
         if (index == 0) return _buildInsightsCard();
-        final log = _logs[index - 1];
+        if (index == 1) return _buildPredictionCard();
+        final log = _logs[index - 2];
         final habits = _habitCount(log['actions_chosen']);
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -232,6 +279,88 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
+  Widget _buildPredictionCard() {
+    final prediction = _predictTomorrow();
+    if (prediction == null) return const SizedBox.shrink();
+
+    final weekdayName = _weekdayFullNames[prediction.weekday - 1];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.auto_graph, color: Color(0xFF00E5FF), size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Predicción para mañana ($weekdayName)',
+                  style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            prediction.usedWeekdayPattern
+                ? 'Basado en ${prediction.sampleSize} $weekdayName${prediction.sampleSize == 1 ? '' : 's'} anteriores de tu historial'
+                : 'Todavía no hay suficientes $weekdayName registrados; se usa tu patrón general',
+            style: GoogleFonts.inter(color: Colors.white54, fontSize: 11, height: 1.4),
+          ),
+          const SizedBox(height: 16),
+          _buildPredictionBar('Alta', prediction.highPct, const Color(0xFF00E5FF)),
+          const SizedBox(height: 8),
+          _buildPredictionBar('Normal', prediction.normalPct, const Color(0xFFFFD700)),
+          const SizedBox(height: 8),
+          _buildPredictionBar('Baja', prediction.lowPct, const Color(0xFFFF007F)),
+          if (prediction.sampleSize < 5) ...[
+            const SizedBox(height: 14),
+            Text(
+              'Aún es pronto para una predicción confiable. Sigue registrando tu energía a diario.',
+              style: GoogleFonts.inter(color: Colors.white38, fontSize: 11, height: 1.4),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPredictionBar(String label, double pct, Color color) {
+    return Row(
+      children: [
+        SizedBox(width: 56, child: Text(label, style: GoogleFonts.inter(color: Colors.white70, fontSize: 12))),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: pct / 100,
+              minHeight: 10,
+              backgroundColor: Colors.white.withValues(alpha: 0.08),
+              color: color,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 42,
+          child: Text(
+            '${pct.round()}%',
+            textAlign: TextAlign.right,
+            style: GoogleFonts.outfit(color: color, fontWeight: FontWeight.bold, fontSize: 13),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildStat(IconData icon, String value, String label, Color color) {
     return Column(
       children: [
@@ -266,4 +395,22 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ],
     );
   }
+}
+
+class _EnergyPrediction {
+  final double highPct;
+  final double normalPct;
+  final double lowPct;
+  final int sampleSize;
+  final bool usedWeekdayPattern;
+  final int weekday; // 1=lunes .. 7=domingo
+
+  const _EnergyPrediction({
+    required this.highPct,
+    required this.normalPct,
+    required this.lowPct,
+    required this.sampleSize,
+    required this.usedWeekdayPattern,
+    required this.weekday,
+  });
 }

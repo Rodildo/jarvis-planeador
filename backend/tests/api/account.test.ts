@@ -1,7 +1,7 @@
 import request from 'supertest';
 import express from 'express';
 import { apiRouter } from '../../src/api/routes';
-import { getUserById, updateUserName, updateUserPassword, deleteUserAccount } from '../../src/db/database';
+import { getUserById, updateUserName, updateUserPassword, updateUserAvatar, deleteUserAccount } from '../../src/db/database';
 
 jest.mock('../../src/db/database');
 jest.mock('../../src/ai/gemini');
@@ -105,5 +105,46 @@ describe('API Routes - Account management', () => {
 
         expect(response.status).toBe(401);
         expect(deleteUserAccount).not.toHaveBeenCalled();
+    });
+
+    it('PUT /api/profile/avatar stores a valid data URI', async () => {
+        (updateUserAvatar as jest.Mock).mockResolvedValue(undefined);
+        const avatar = 'data:image/jpeg;base64,AAAA';
+
+        const response = await request(app)
+            .put('/api/profile/avatar')
+            .send({ avatar });
+
+        expect(response.status).toBe(200);
+        expect(updateUserAvatar).toHaveBeenCalledWith('user_123', avatar);
+    });
+
+    it('PUT /api/profile/avatar rejects a non-image payload', async () => {
+        const response = await request(app)
+            .put('/api/profile/avatar')
+            .send({ avatar: 'not-an-image' });
+
+        expect(response.status).toBe(400);
+        expect(updateUserAvatar).not.toHaveBeenCalled();
+    });
+
+    it('PUT /api/profile/avatar rejects an oversized payload', async () => {
+        const hugeAvatar = 'data:image/jpeg;base64,' + 'A'.repeat(1_100_000);
+
+        const response = await request(app)
+            .put('/api/profile/avatar')
+            .send({ avatar: hugeAvatar });
+
+        expect(response.status).toBe(413);
+        expect(updateUserAvatar).not.toHaveBeenCalled();
+    });
+
+    it('DELETE /api/profile/avatar removes the avatar', async () => {
+        (updateUserAvatar as jest.Mock).mockResolvedValue(undefined);
+
+        const response = await request(app).delete('/api/profile/avatar');
+
+        expect(response.status).toBe(200);
+        expect(updateUserAvatar).toHaveBeenCalledWith('user_123', null);
     });
 });

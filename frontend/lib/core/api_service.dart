@@ -11,10 +11,12 @@ class ApiService {
   static const String _tokenPrefsKey = 'auth_token';
   static const String _firstNamePrefsKey = 'user_first_name';
   static const String _lastNamePrefsKey = 'user_last_name';
+  static const String _avatarPrefsKey = 'user_avatar';
 
   static String? _token;
   static String? _firstName;
   static String? _lastName;
+  static String? _avatar;
 
   /// Se dispara cuando cualquier llamada devuelve 401 (token vencido o
   /// revocado), para que la app pueda cerrar sesión y volver a /login.
@@ -28,12 +30,15 @@ class ApiService {
   static bool get isLoggedIn => _token != null;
   static String? get firstName => _firstName;
   static String? get lastName => _lastName;
+  /// Data URI (data:image/jpeg;base64,...) o null si no hay foto de perfil.
+  static String? get avatar => _avatar;
 
   static Future<void> loadStoredToken() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString(_tokenPrefsKey);
     _firstName = prefs.getString(_firstNamePrefsKey);
     _lastName = prefs.getString(_lastNamePrefsKey);
+    _avatar = prefs.getString(_avatarPrefsKey);
   }
 
   static Future<void> _setSession(String token, String firstName, String lastName) async {
@@ -50,10 +55,12 @@ class ApiService {
     ApiService._token = null;
     ApiService._firstName = null;
     ApiService._lastName = null;
+    ApiService._avatar = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenPrefsKey);
     await prefs.remove(_firstNamePrefsKey);
     await prefs.remove(_lastNamePrefsKey);
+    await prefs.remove(_avatarPrefsKey);
     await prefs.remove('has_blueprint');
   }
 
@@ -116,12 +123,18 @@ class ApiService {
       _reportIfUnauthorized(response);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        final prefs = await SharedPreferences.getInstance();
         if (data['firstName'] != null && data['lastName'] != null) {
           _firstName = data['firstName'];
           _lastName = data['lastName'];
-          final prefs = await SharedPreferences.getInstance();
           await prefs.setString(_firstNamePrefsKey, _firstName!);
           await prefs.setString(_lastNamePrefsKey, _lastName!);
+        }
+        _avatar = data['avatar'];
+        if (_avatar != null) {
+          await prefs.setString(_avatarPrefsKey, _avatar!);
+        } else {
+          await prefs.remove(_avatarPrefsKey);
         }
         return data['hasBlueprint'] ?? false;
       }
@@ -148,6 +161,37 @@ class ApiService {
       return;
     }
     throw Exception(data['error'] ?? 'No se pudo actualizar tu perfil.');
+  }
+
+  /// [dataUri] ya debe venir comprimido/redimensionado del lado del
+  /// cliente (ver image_picker maxWidth/maxHeight/imageQuality), en
+  /// formato "data:image/jpeg;base64,...".
+  Future<void> uploadAvatar(String dataUri) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/profile/avatar'),
+      headers: _headers,
+      body: jsonEncode({'avatar': dataUri}),
+    );
+    _reportIfUnauthorized(response);
+    if (response.statusCode == 200) {
+      _avatar = dataUri;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_avatarPrefsKey, dataUri);
+      return;
+    }
+    throw Exception(_friendlyError(response, 'No se pudo subir la foto de perfil.'));
+  }
+
+  Future<void> removeAvatar() async {
+    final response = await http.delete(Uri.parse('$baseUrl/profile/avatar'), headers: _headers);
+    _reportIfUnauthorized(response);
+    if (response.statusCode == 200) {
+      _avatar = null;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_avatarPrefsKey);
+      return;
+    }
+    throw Exception(_friendlyError(response, 'No se pudo quitar la foto de perfil.'));
   }
 
   Future<void> changePassword(String currentPassword, String newPassword) async {

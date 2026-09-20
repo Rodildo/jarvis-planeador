@@ -67,12 +67,13 @@ export const initDB = async (dbPath: string = './data/jarvis.sqlite'): Promise<v
                             )
                         `, (err) => {
                             if (err) reject(err);
-                            // Migración ligera para bases de datos creadas antes de
-                            // agregar first_name/last_name; falla en silencio si la
-                            // columna ya existe.
+                            // Migraciones ligeras para bases de datos creadas antes de
+                            // agregar estas columnas; fallan en silencio si ya existen.
                             db.run(`ALTER TABLE users ADD COLUMN first_name TEXT NOT NULL DEFAULT ''`, () => {
                                 db.run(`ALTER TABLE users ADD COLUMN last_name TEXT NOT NULL DEFAULT ''`, () => {
-                                    resolve();
+                                    db.run(`ALTER TABLE users ADD COLUMN avatar TEXT`, () => {
+                                        resolve();
+                                    });
                                 });
                             });
                         });
@@ -232,11 +233,12 @@ export interface UserRecord {
     password_hash: string;
     first_name: string;
     last_name: string;
+    avatar: string | null;
 }
 
 export const getUserByEmail = async (email: string): Promise<UserRecord | null> => {
     return new Promise((resolve, reject) => {
-        db.get(`SELECT id, email, password_hash, first_name, last_name FROM users WHERE email = ?`, [email], (err, row: any) => {
+        db.get(`SELECT id, email, password_hash, first_name, last_name, avatar FROM users WHERE email = ?`, [email], (err, row: any) => {
             if (err) reject(err);
             else resolve(row || null);
         });
@@ -245,9 +247,22 @@ export const getUserByEmail = async (email: string): Promise<UserRecord | null> 
 
 export const getUserById = async (id: string): Promise<UserRecord | null> => {
     return new Promise((resolve, reject) => {
-        db.get(`SELECT id, email, password_hash, first_name, last_name FROM users WHERE id = ?`, [id], (err, row: any) => {
+        db.get(`SELECT id, email, password_hash, first_name, last_name, avatar FROM users WHERE id = ?`, [id], (err, row: any) => {
             if (err) reject(err);
             else resolve(row || null);
+        });
+    });
+};
+
+// `avatar` es un data URI (ej: "data:image/jpeg;base64,...") o null para
+// quitar la foto. El cliente ya la redimensiona/comprime antes de subirla.
+export const updateUserAvatar = async (id: string, avatar: string | null): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        const stmt = db.prepare(`UPDATE users SET avatar = ? WHERE id = ?`);
+        stmt.run(avatar, id, (err: Error | null) => {
+            stmt.finalize();
+            if (err) reject(err);
+            else resolve();
         });
     });
 };

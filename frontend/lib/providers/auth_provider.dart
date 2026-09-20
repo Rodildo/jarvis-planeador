@@ -82,6 +82,40 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> uploadAvatar(String dataUri) async {
+    isLoading = true;
+    errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _api.uploadAvatar(dataUri);
+      return true;
+    } catch (e) {
+      errorMessage = e.toString().replaceFirst('Exception: ', '');
+      return false;
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> removeAvatar() async {
+    isLoading = true;
+    errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _api.removeAvatar();
+      return true;
+    } catch (e) {
+      errorMessage = e.toString().replaceFirst('Exception: ', '');
+      return false;
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<bool> deleteAccount(String password) async {
     isLoading = true;
     errorMessage = null;

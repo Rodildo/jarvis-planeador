@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -9,12 +10,23 @@ import '../core/api_service.dart';
 class JarvisDrawer extends StatelessWidget {
   const JarvisDrawer({super.key});
 
+  ImageProvider? _avatarImage() {
+    final avatarUri = ApiService.avatar;
+    if (avatarUri == null) return null;
+    try {
+      return MemoryImage(base64Decode(avatarUri.split(',').last));
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentRoute = GoRouterState.of(context).uri.toString();
     final displayName = [ApiService.firstName, ApiService.lastName]
         .where((n) => n != null && n.isNotEmpty)
         .join(' ');
+    final avatarImage = _avatarImage();
     return Drawer(
       backgroundColor: Colors.transparent,
       child: ClipRRect(
@@ -34,10 +46,11 @@ class JarvisDrawer extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      const CircleAvatar(
+                      CircleAvatar(
                         radius: 30,
-                        backgroundColor: Color(0xFF00E5FF),
-                        child: Icon(Icons.person, color: Colors.black, size: 35),
+                        backgroundColor: const Color(0xFF00E5FF),
+                        backgroundImage: avatarImage,
+                        child: avatarImage == null ? const Icon(Icons.person, color: Colors.black, size: 35) : null,
                       ),
                       const SizedBox(height: 15),
                       Text(

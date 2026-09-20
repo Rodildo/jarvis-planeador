@@ -5,7 +5,7 @@ import { generateBlueprint, generateDailyPlan, generateMidDayAdjustment, LIFE_AR
 import {
     saveBlueprint, getBlueprint, getBlueprintUpdatedAt, saveMorningLog, saveMiddayLog, saveDailyActions, getDailyLog,
     getRecentDailyLogs, hasBlueprint, saveOnboardingProgress, getOnboardingProgress, clearOnboardingProgress,
-    createUser, getUserByEmail, getUserById, updateUserName, updateUserPassword, deleteUserAccount
+    createUser, getUserByEmail, getUserById, updateUserName, updateUserPassword, updateUserAvatar, deleteUserAccount
 } from '../db/database';
 import { requireAuth, hashPassword, verifyPassword, signToken, isValidEmail, AuthedRequest } from '../auth/auth';
 
@@ -108,9 +108,41 @@ apiRouter.get('/profile', async (req: AuthedRequest, res) => {
             hasBlueprint: complete,
             firstName: user?.first_name ?? '',
             lastName: user?.last_name ?? '',
+            avatar: user?.avatar ?? null,
         });
     } catch (error: any) {
         console.error('Profile Check Error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
+
+// Tamaño máximo del data URI aceptado (~750KB en base64, de sobra para una
+// foto de perfil ya comprimida/redimensionada del lado del cliente).
+const MAX_AVATAR_LENGTH = 1_000_000;
+
+apiRouter.put('/profile/avatar', async (req: AuthedRequest, res) => {
+    try {
+        const { avatar } = req.body;
+        if (typeof avatar !== 'string' || !avatar.startsWith('data:image/')) {
+            return res.status(400).json({ error: 'avatar debe ser una imagen en formato data URI (data:image/...)' });
+        }
+        if (avatar.length > MAX_AVATAR_LENGTH) {
+            return res.status(413).json({ error: 'La imagen es demasiado grande. Intenta con una más pequeña.' });
+        }
+        await updateUserAvatar(req.userId!, avatar);
+        res.status(200).json({ success: true, avatar });
+    } catch (error: any) {
+        console.error('Update Avatar Error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
+
+apiRouter.delete('/profile/avatar', async (req: AuthedRequest, res) => {
+    try {
+        await updateUserAvatar(req.userId!, null);
+        res.status(200).json({ success: true });
+    } catch (error: any) {
+        console.error('Delete Avatar Error:', error);
         res.status(500).json({ error: error.message || 'Internal server error' });
     }
 });
@@ -243,7 +275,9 @@ apiRouter.get('/daily-log/:date', async (req: AuthedRequest, res) => {
 
 apiRouter.get('/history', async (req: AuthedRequest, res) => {
     try {
-        const days = Math.min(parseInt(String(req.query.days ?? '30'), 10) || 30, 90);
+        // Tope alto (un año) para que la predicción de energía tenga
+        // suficiente historial de patrones por día de la semana.
+        const days = Math.min(parseInt(String(req.query.days ?? '30'), 10) || 30, 365);
         const logs = await getRecentDailyLogs(req.userId!, days);
         res.status(200).json({ success: true, logs });
     } catch (error: any) {

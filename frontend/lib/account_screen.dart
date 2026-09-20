@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'providers/auth_provider.dart';
 import 'core/api_service.dart';
 import 'core/notification_service.dart';
@@ -45,6 +47,120 @@ class _AccountScreenState extends State<AccountScreen> {
     _firstNameController.dispose();
     _lastNameController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickAvatar(AuthProvider auth) async {
+    final picker = ImagePicker();
+    XFile? picked;
+    try {
+      picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 70,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _profileMessage = 'No se pudo abrir la galería.';
+        _profileMessageIsError = true;
+      });
+      return;
+    }
+    if (picked == null) return;
+
+    final bytes = await picked.readAsBytes();
+    final mimeType = picked.mimeType ?? 'image/jpeg';
+    final dataUri = 'data:$mimeType;base64,${base64Encode(bytes)}';
+
+    final success = await auth.uploadAvatar(dataUri);
+    if (!mounted) return;
+    setState(() {
+      _profileMessage = success ? 'Foto de perfil actualizada.' : auth.errorMessage;
+      _profileMessageIsError = !success;
+    });
+  }
+
+  Future<void> _removeAvatar(AuthProvider auth) async {
+    final success = await auth.removeAvatar();
+    if (!mounted) return;
+    setState(() {
+      _profileMessage = success ? 'Foto de perfil eliminada.' : auth.errorMessage;
+      _profileMessageIsError = !success;
+    });
+  }
+
+  Future<void> _showAvatarOptions(AuthProvider auth) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF131B2F),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined, color: Color(0xFF00E5FF)),
+              title: Text('Elegir de la galería', style: GoogleFonts.inter(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _pickAvatar(auth);
+              },
+            ),
+            if (ApiService.avatar != null)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                title: Text('Quitar foto', style: GoogleFonts.inter(color: Colors.redAccent)),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _removeAvatar(auth);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatarSection(AuthProvider auth) {
+    final avatarUri = ApiService.avatar;
+    ImageProvider? imageProvider;
+    if (avatarUri != null) {
+      try {
+        imageProvider = MemoryImage(base64Decode(avatarUri.split(',').last));
+      } catch (_) {
+        imageProvider = null;
+      }
+    }
+
+    return Center(
+      child: GestureDetector(
+        onTap: auth.isLoading ? null : () => _showAvatarOptions(auth),
+        child: Stack(
+          children: [
+            CircleAvatar(
+              radius: 48,
+              backgroundColor: const Color(0xFF00E5FF).withValues(alpha: 0.15),
+              backgroundImage: imageProvider,
+              child: imageProvider == null ? const Icon(Icons.person, color: Color(0xFF00E5FF), size: 44) : null,
+            ),
+            Positioned(
+              bottom: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00E5FF),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFF070B14), width: 2),
+                ),
+                child: const Icon(Icons.camera_alt, color: Color(0xFF070B14), size: 16),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _saveProfile(AuthProvider auth) async {
@@ -285,6 +401,8 @@ class _AccountScreenState extends State<AccountScreen> {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
+              _buildAvatarSection(auth),
+              const SizedBox(height: 28),
               _buildSectionTitle('Perfil'),
               _buildCard(
                 children: [
