@@ -40,16 +40,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  void _handleAudio(ChatProvider provider) async {
-    if (provider.isRecording) {
-      final transcribedText = await provider.stopRecordingAndTranscribe();
-      if (transcribedText != null) {
-        _energyController.text = transcribedText;
-      }
-    } else {
-      provider.startRecording();
-    }
-  }
+
 
   Widget _buildOptionCard(String goal, dynamic option, ChatProvider provider) {
     bool isSelected = provider.selectedActions[goal] == option;
@@ -110,7 +101,6 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<ChatProvider>();
     bool canConfirm = provider.morningOptions != null && provider.selectedActions.length == provider.morningOptions!.keys.length;
-    bool canShowMic = _energyController.text.trim().isEmpty;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -304,8 +294,8 @@ class _ChatScreenState extends State<ChatScreen> {
                               controller: _energyController,
                               style: GoogleFonts.inter(color: Colors.white),
                               decoration: InputDecoration(
-                                hintText: provider.isRecording ? 'Escuchando...' : 'Nivel de energía (1-5)...',
-                                hintStyle: TextStyle(color: provider.isRecording ? const Color(0xFFFF007F) : Colors.white.withValues(alpha: 0.3)),
+                                hintText: 'Nivel de energía (1-5)...',
+                                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
                                 filled: true,
                                 fillColor: Colors.white.withValues(alpha: 0.05),
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
@@ -316,29 +306,20 @@ class _ChatScreenState extends State<ChatScreen> {
                           ),
                           const SizedBox(width: 12),
                           GestureDetector(
-                            onLongPressStart: canShowMic ? (_) => provider.startRecording() : null,
-                            onLongPressEnd: canShowMic ? (_) => _handleAudio(provider) : null,
-                            onTap: () {
-                              if (!canShowMic) _handleSubmit(provider);
-                            },
+                            onTap: () => _handleSubmit(provider),
                             child: Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: provider.isRecording ? const Color(0xFFFF007F) : const Color(0xFF00E5FF).withValues(alpha: 0.1),
+                                color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
                                 shape: BoxShape.circle,
-                                border: Border.all(color: provider.isRecording ? Colors.transparent : const Color(0xFF00E5FF).withValues(alpha: 0.5)),
-                                boxShadow: provider.isRecording 
-                                  ? [const BoxShadow(color: Color(0xFFFF007F), blurRadius: 20, spreadRadius: 2)]
-                                  : [],
+                                border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.5)),
                               ),
-                              child: Icon(
-                                canShowMic ? Icons.mic : Icons.send, 
-                                color: provider.isRecording ? Colors.white : const Color(0xFF00E5FF),
+                              child: const Icon(
+                                Icons.send, 
+                                color: Color(0xFF00E5FF),
                                 size: 22
                               ),
-                            ).animate(
-                              onPlay: (controller) => canShowMic && !provider.isRecording ? controller.repeat(reverse: true) : controller.stop(),
-                            ).scale(begin: const Offset(1,1), end: const Offset(1.05, 1.05), duration: 1.seconds, curve: Curves.easeInOut),
+                            ),
                           ),
                         ],
                       ),

@@ -39,21 +39,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
-  void _handleAudio(OnboardingProvider provider) async {
-    if (provider.isRecording) {
-      final shouldNavigate = await provider.stopRecordingAndSubmit();
-      if (shouldNavigate && mounted) {
-        context.go('/chat');
-      }
-    } else {
-      await provider.startRecording();
-    }
-  }
+
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<OnboardingProvider>();
-    bool canShowMic = _controller.text.trim().isEmpty;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -142,8 +132,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             controller: _controller,
                             style: GoogleFonts.inter(color: Colors.white),
                             decoration: InputDecoration(
-                              hintText: provider.isRecording ? 'Escuchando...' : 'Escribe tu respuesta...',
-                              hintStyle: TextStyle(color: provider.isRecording ? const Color(0xFFFF007F) : Colors.white.withValues(alpha: 0.3)),
+                                hintText: 'Escribe tu respuesta...',
+                                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
                               filled: true,
                               fillColor: Colors.white.withValues(alpha: 0.05),
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
@@ -155,33 +145,26 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        GestureDetector(
-                          onLongPressStart: canShowMic ? (_) => provider.startRecording() : null,
-                          onLongPressEnd: canShowMic ? (_) => _handleAudio(provider) : null,
-                          onTap: () {
-                            if (!canShowMic && !provider.isLoading) {
-                              _submit(provider);
-                            }
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: provider.isRecording ? const Color(0xFFFF007F) : const Color(0xFF00E5FF).withValues(alpha: 0.1),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: provider.isRecording ? Colors.transparent : const Color(0xFF00E5FF).withValues(alpha: 0.5)),
-                              boxShadow: provider.isRecording 
-                                ? [const BoxShadow(color: Color(0xFFFF007F), blurRadius: 20, spreadRadius: 2)]
-                                : [],
+                          GestureDetector(
+                            onTap: () {
+                              if (!provider.isLoading) {
+                                _submit(provider);
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.5)),
+                              ),
+                              child: const Icon(
+                                Icons.send, 
+                                color: Color(0xFF00E5FF),
+                                size: 22
+                              )
                             ),
-                            child: Icon(
-                              canShowMic ? Icons.mic : Icons.send, 
-                              color: provider.isRecording ? Colors.white : const Color(0xFF00E5FF),
-                              size: 22
-                            )
-                          ).animate(
-                            onPlay: (controller) => canShowMic && !provider.isRecording ? controller.repeat(reverse: true) : controller.stop(),
-                          ).scale(begin: const Offset(1,1), end: const Offset(1.05, 1.05), duration: 1.seconds, curve: Curves.easeInOut),
-                        ),
+                          ),
                       ],
                     ),
                   ),

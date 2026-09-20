@@ -6,11 +6,9 @@ import '../core/api_service.dart';
 
 class OnboardingProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
-  final AudioRecorder _audioRecorder = AudioRecorder();
   
   List<Map<String, String>> messages = [];
   bool isLoading = false;
-  bool isRecording = false;
   int questionCount = 0;
   final int maxQuestions = 5;
   String? errorMessage;
@@ -110,37 +108,5 @@ class OnboardingProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> startRecording() async {
-    if (await _audioRecorder.hasPermission()) {
-      final dir = await getTemporaryDirectory();
-      await _audioRecorder.start(const RecordConfig(), path: '${dir.path}/audio.webm');
-      isRecording = true;
-      notifyListeners();
-    }
-  }
 
-  Future<bool> stopRecordingAndSubmit() async {
-    if (!isRecording) return false;
-    final path = await _audioRecorder.stop();
-    isRecording = false;
-    notifyListeners();
-    
-    if (path != null) {
-      isLoading = true;
-      notifyListeners();
-      try {
-        final text = await _api.transcribeAudio(path);
-        if (text != null && text.isNotEmpty) {
-          return await submitAnswer(text);
-        }
-      } catch (e) {
-        errorMessage = e.toString();
-        messages.add({'role': 'jarvis', 'text': 'Error subiendo audio: $e'});
-      } finally {
-        isLoading = false;
-        notifyListeners();
-      }
-    }
-    return false;
-  }
 }

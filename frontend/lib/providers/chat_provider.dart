@@ -5,10 +5,8 @@ import '../core/api_service.dart';
 
 class ChatProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
-  final AudioRecorder _audioRecorder = AudioRecorder();
 
   bool isLoading = false;
-  bool isRecording = false;
   String jarvisMessage = "¡Buenos días! Soy Jarvis. ¿Del 1 al 5, cómo está tu nivel de energía hoy?";
   
   Map<String, dynamic>? morningOptions;
@@ -16,11 +14,7 @@ class ChatProvider extends ChangeNotifier {
   bool dayStarted = false;
   bool showMiddayInput = false;
 
-  @override
-  void dispose() {
-    _audioRecorder.dispose();
-    super.dispose();
-  }
+
 
   void toggleAction(String goal, dynamic option) {
     selectedActions[goal] = option;
@@ -125,33 +119,5 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> startRecording() async {
-    if (await _audioRecorder.hasPermission()) {
-      final dir = await getTemporaryDirectory();
-      await _audioRecorder.start(const RecordConfig(), path: '${dir.path}/audio.webm');
-      isRecording = true;
-      notifyListeners();
-    }
-  }
 
-  Future<String?> stopRecordingAndTranscribe() async {
-    if (!isRecording) return null;
-    final path = await _audioRecorder.stop();
-    isRecording = false;
-    notifyListeners();
-    
-    if (path != null) {
-      isLoading = true;
-      notifyListeners();
-      try {
-        return await _api.transcribeAudio(path);
-      } catch (e) {
-        jarvisMessage = "Error subiendo audio: $e";
-      } finally {
-        isLoading = false;
-        notifyListeners();
-      }
-    }
-    return null;
-  }
 }
