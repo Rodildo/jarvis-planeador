@@ -12,17 +12,20 @@
 3. Confirmar una compilación **release** (no debug) funcionando de punta a punta en un dispositivo real — el crash de pantalla blanca ya se arregló, pero conviene una prueba explícita en modo release.
 4. No hay reportes de errores/crashes (Sentry, Firebase Crashlytics o similar) — si la app le falla a un usuario, no hay forma de enterarse salvo que lo reporte.
 5. Sin alerta de presupuesto en el dashboard de OpenRouter — el rate limiting interno protege contra bugs en bucle, pero no hay techo de gasto configurado del lado del proveedor.
-6. La Política de Privacidad solo vive dentro de la app (`/legal`). Para publicar en Google Play hace falta una URL pública, no solo una pantalla interna.
-7. El número de versión (`pubspec.yaml` → `version: 1.0.0+1`) no se ha subido desde el inicio del proyecto. Si se van a repartir APKs actualizados a la misma gente, Android necesita que ese número suba en cada build para reconocer que es una actualización.
-8. Cobertura de tests del frontend es un solo smoke test (`test/widget_test.dart`). El backend tiene cobertura real (9 suites / 31 tests); el frontend no.
-9. No hay CI (los tests y `flutter analyze`/`tsc --noEmit` se corren manualmente en cada sesión de edición, no automático en cada push).
+6. El número de versión (`pubspec.yaml` → `version: 1.0.0+1`) no se ha subido desde el inicio del proyecto. Si se van a repartir APKs actualizados a la misma gente, Android necesita que ese número suba en cada build para reconocer que es una actualización.
+7. Cobertura de tests del frontend es un solo smoke test (`test/widget_test.dart`). El backend tiene cobertura real (9 suites / 32 tests); el frontend no.
+8. No hay CI (los tests y `flutter analyze`/`tsc --noEmit` se corren manualmente en cada sesión de edición, no automático en cada push).
+
+## ✅ Resuelto
+
+- ~~La Política de Privacidad solo vive dentro de la app~~ — ya existe una copia pública en `website/privacidad.html`, pensada exactamente para el campo de URL que pide Play Console. Falta solo publicar el sitio (ver `website/README.md`) para que esa URL sea real.
 
 ## 🟢 Si algún día se apunta a Google Play (no evaluado todavía)
 
 - Firma de release con keystore propio (hoy se asume debug-signed o sin verificar).
 - Cuestionario de clasificación de contenido de Play Console — relevante porque la app toca temas de salud mental en el brief.
 - Formulario de "Data Safety" de Play Store (qué datos se recogen, con quién se comparten — ya está documentado en [02-backend.md](02-backend.md) y en `/legal`, solo faltaría trasladarlo al formulario de la tienda).
-- Assets de listado: ícono ya existe, faltarían screenshots, gráfico de feature, descripción corta/larga.
+- Assets de listado: ícono ya existe, y ya hay 2 capturas reales (`website/assets/screenshots/`) reusables como base — faltaría un gráfico de feature y la descripción corta/larga formal para la ficha de la tienda.
 - Soporte iOS no evaluado — el proyecto Flutter trae los archivos de iOS por defecto pero nunca se ha compilado ni probado ahí.
 
 ## Ideas de mejora (no huecos de lanzamiento, mejoras futuras)
