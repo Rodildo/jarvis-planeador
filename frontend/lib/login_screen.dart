@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/auth_provider.dart';
 import 'core/api_service.dart';
 import 'core/notification_service.dart';
@@ -73,6 +74,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final hasBlueprint = _isRegisterMode ? false : await ApiService().checkProfile();
     if (hasBlueprint) {
+      // Sin esto, el próximo arranque en frío no tiene forma local de saber
+      // que este usuario ya tiene blueprint: dependería de que /profile
+      // responda a tiempo, y si esa llamada falla (sin red en el momento
+      // justo del arranque, por ejemplo) manda al usuario a rehacer todo
+      // el brief de 50 preguntas por error.
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('has_blueprint', true);
       await NotificationService.instance.scheduleMorningReminder();
       await NotificationService.instance.scheduleNightReminder();
     }
