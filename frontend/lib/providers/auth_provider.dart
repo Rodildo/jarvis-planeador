@@ -26,13 +26,13 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> register(String email, String password) async {
+  Future<bool> register(String email, String password, String firstName, String lastName) async {
     isLoading = true;
     errorMessage = null;
     notifyListeners();
 
     try {
-      await _api.register(email, password);
+      await _api.register(email, password, firstName, lastName);
       return true;
     } catch (e) {
       errorMessage = e.toString().replaceFirst('Exception: ', '');

@@ -1,7 +1,7 @@
 import request from 'supertest';
 import express from 'express';
 import { apiRouter } from '../../src/api/routes';
-import { getBlueprint, saveMorningLog } from '../../src/db/database';
+import { getBlueprint, saveMorningLog, getUserById } from '../../src/db/database';
 import { generateDailyPlan } from '../../src/ai/gemini';
 
 jest.mock('../../src/db/database');
@@ -31,6 +31,7 @@ describe('API Routes - Daily Plan', () => {
 
         (getBlueprint as jest.Mock).mockResolvedValue(mockBlueprint);
         (saveMorningLog as jest.Mock).mockResolvedValue(undefined);
+        (getUserById as jest.Mock).mockResolvedValue({ id: 'user_123', email: 'jorge@example.com', password_hash: 'x', first_name: 'Jorge', last_name: 'Castillo' });
         (generateDailyPlan as jest.Mock).mockResolvedValue(mockPlan);
 
         const response = await request(app)
@@ -43,7 +44,7 @@ describe('API Routes - Daily Plan', () => {
 
         expect(saveMorningLog).toHaveBeenCalledWith('user_123', '2026-09-17', 5);
         expect(getBlueprint).toHaveBeenCalledWith('user_123');
-        expect(generateDailyPlan).toHaveBeenCalledWith(JSON.parse(mockBlueprint), 5);
+        expect(generateDailyPlan).toHaveBeenCalledWith(JSON.parse(mockBlueprint), 5, 'Jorge');
     });
 
     it('POST /api/daily-plan should return 404 if blueprint is missing', async () => {

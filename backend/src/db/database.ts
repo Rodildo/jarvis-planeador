@@ -61,11 +61,20 @@ export const initDB = async (dbPath: string = './data/jarvis.sqlite'): Promise<v
                                 id TEXT PRIMARY KEY,
                                 email TEXT UNIQUE NOT NULL,
                                 password_hash TEXT NOT NULL,
+                                first_name TEXT NOT NULL DEFAULT '',
+                                last_name TEXT NOT NULL DEFAULT '',
                                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                             )
                         `, (err) => {
                             if (err) reject(err);
-                            resolve();
+                            // Migración ligera para bases de datos creadas antes de
+                            // agregar first_name/last_name; falla en silencio si la
+                            // columna ya existe.
+                            db.run(`ALTER TABLE users ADD COLUMN first_name TEXT NOT NULL DEFAULT ''`, () => {
+                                db.run(`ALTER TABLE users ADD COLUMN last_name TEXT NOT NULL DEFAULT ''`, () => {
+                                    resolve();
+                                });
+                            });
                         });
                     });
                 });
@@ -206,10 +215,10 @@ export const getRecentDailyLogs = async (userId: string, days: number): Promise<
     });
 };
 
-export const createUser = async (id: string, email: string, passwordHash: string): Promise<void> => {
+export const createUser = async (id: string, email: string, passwordHash: string, firstName: string, lastName: string): Promise<void> => {
     return new Promise((resolve, reject) => {
-        const stmt = db.prepare(`INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)`);
-        stmt.run(id, email, passwordHash, (err: Error | null) => {
+        const stmt = db.prepare(`INSERT INTO users (id, email, password_hash, first_name, last_name) VALUES (?, ?, ?, ?, ?)`);
+        stmt.run(id, email, passwordHash, firstName, lastName, (err: Error | null) => {
             stmt.finalize();
             if (err) reject(err);
             else resolve();
@@ -221,11 +230,22 @@ export interface UserRecord {
     id: string;
     email: string;
     password_hash: string;
+    first_name: string;
+    last_name: string;
 }
 
 export const getUserByEmail = async (email: string): Promise<UserRecord | null> => {
     return new Promise((resolve, reject) => {
-        db.get(`SELECT id, email, password_hash FROM users WHERE email = ?`, [email], (err, row: any) => {
+        db.get(`SELECT id, email, password_hash, first_name, last_name FROM users WHERE email = ?`, [email], (err, row: any) => {
+            if (err) reject(err);
+            else resolve(row || null);
+        });
+    });
+};
+
+export const getUserById = async (id: string): Promise<UserRecord | null> => {
+    return new Promise((resolve, reject) => {
+        db.get(`SELECT id, email, password_hash, first_name, last_name FROM users WHERE id = ?`, [id], (err, row: any) => {
             if (err) reject(err);
             else resolve(row || null);
         });

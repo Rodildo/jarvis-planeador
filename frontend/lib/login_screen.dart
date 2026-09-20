@@ -18,22 +18,38 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   bool _isRegisterMode = false;
+  String? _localError;
+
+  static final _emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     super.dispose();
   }
 
   Future<void> _submit(AuthProvider auth) async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
+    final firstName = _firstNameController.text.trim();
+    final lastName = _lastNameController.text.trim();
+    setState(() => _localError = null);
+
     if (email.isEmpty || password.isEmpty) return;
+    if (_isRegisterMode && (firstName.isEmpty || lastName.isEmpty)) return;
+    if (!_emailRegex.hasMatch(email)) {
+      setState(() => _localError = 'Ingresa un correo con formato válido.');
+      return;
+    }
 
     final success = _isRegisterMode
-        ? await auth.register(email, password)
+        ? await auth.register(email, password, firstName, lastName)
         : await auth.login(email, password);
 
     if (!success || !mounted) return;
@@ -93,12 +109,22 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
                         ),
                         const SizedBox(height: 28),
+                        if (_isRegisterMode) ...[
+                          Row(
+                            children: [
+                              Expanded(child: _buildTextField(_firstNameController, 'Nombre', false)),
+                              const SizedBox(width: 12),
+                              Expanded(child: _buildTextField(_lastNameController, 'Apellido', false)),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                        ],
                         _buildTextField(_emailController, 'Correo', false),
                         const SizedBox(height: 14),
                         _buildTextField(_passwordController, 'Contraseña', true),
-                        if (auth.errorMessage != null) ...[
+                        if (_localError != null || auth.errorMessage != null) ...[
                           const SizedBox(height: 14),
-                          Text(auth.errorMessage!, style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
+                          Text(_localError ?? auth.errorMessage!, style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
                         ],
                         const SizedBox(height: 22),
                         ElevatedButton(

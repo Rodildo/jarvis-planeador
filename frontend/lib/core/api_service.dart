@@ -9,30 +9,46 @@ class ApiService {
     defaultValue: 'https://app-jarvisplanner.hzedxy.easypanel.host/api',
   );
   static const String _tokenPrefsKey = 'auth_token';
+  static const String _firstNamePrefsKey = 'user_first_name';
+  static const String _lastNamePrefsKey = 'user_last_name';
 
   static String? _token;
+  static String? _firstName;
+  static String? _lastName;
 
   /// Se dispara cuando cualquier llamada devuelve 401 (token vencido o
   /// revocado), para que la app pueda cerrar sesión y volver a /login.
   static VoidCallback? onUnauthorized;
 
   static bool get isLoggedIn => _token != null;
+  static String? get firstName => _firstName;
+  static String? get lastName => _lastName;
 
   static Future<void> loadStoredToken() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString(_tokenPrefsKey);
+    _firstName = prefs.getString(_firstNamePrefsKey);
+    _lastName = prefs.getString(_lastNamePrefsKey);
   }
 
-  static Future<void> _setToken(String token) async {
+  static Future<void> _setSession(String token, String firstName, String lastName) async {
     _token = token;
+    _firstName = firstName;
+    _lastName = lastName;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenPrefsKey, token);
+    await prefs.setString(_firstNamePrefsKey, firstName);
+    await prefs.setString(_lastNamePrefsKey, lastName);
   }
 
   Future<void> logout() async {
     ApiService._token = null;
+    ApiService._firstName = null;
+    ApiService._lastName = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenPrefsKey);
+    await prefs.remove(_firstNamePrefsKey);
+    await prefs.remove(_lastNamePrefsKey);
     await prefs.remove('has_blueprint');
   }
 
@@ -45,15 +61,15 @@ class ApiService {
     if (response.statusCode == 401) onUnauthorized?.call();
   }
 
-  Future<void> register(String email, String password) async {
+  Future<void> register(String email, String password, String firstName, String lastName) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/register'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email, 'password': password}),
+      body: jsonEncode({'email': email, 'password': password, 'firstName': firstName, 'lastName': lastName}),
     );
     final data = jsonDecode(response.body);
     if (response.statusCode == 201 && data['token'] != null) {
-      await _setToken(data['token']);
+      await _setSession(data['token'], data['firstName'] ?? firstName, data['lastName'] ?? lastName);
       return;
     }
     throw Exception(data['error'] ?? 'No se pudo crear la cuenta.');
@@ -67,7 +83,7 @@ class ApiService {
     );
     final data = jsonDecode(response.body);
     if (response.statusCode == 200 && data['token'] != null) {
-      await _setToken(data['token']);
+      await _setSession(data['token'], data['firstName'] ?? '', data['lastName'] ?? '');
       return;
     }
     throw Exception(data['error'] ?? 'Correo o contraseña incorrectos.');
@@ -78,7 +94,15 @@ class ApiService {
       final response = await http.get(Uri.parse('$baseUrl/profile'), headers: _headers);
       _reportIfUnauthorized(response);
       if (response.statusCode == 200) {
-        return jsonDecode(response.body)['hasBlueprint'] ?? false;
+        final data = jsonDecode(response.body);
+        if (data['firstName'] != null && data['lastName'] != null) {
+          _firstName = data['firstName'];
+          _lastName = data['lastName'];
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_firstNamePrefsKey, _firstName!);
+          await prefs.setString(_lastNamePrefsKey, _lastName!);
+        }
+        return data['hasBlueprint'] ?? false;
       }
     } catch (e) {
       print('Check profile error: $e');

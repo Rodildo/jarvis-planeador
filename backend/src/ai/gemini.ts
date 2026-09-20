@@ -106,7 +106,7 @@ export const generateBlueprint = async (answers: any, previousBlueprint?: any): 
     return extractJson(text, 'blueprint');
 };
 
-export const generateDailyPlan = async (blueprint: any, energyLevel: number): Promise<any> => {
+export const generateDailyPlan = async (blueprint: any, energyLevel: number, userName?: string): Promise<any> => {
     let modeContext = "";
     if (energyLevel <= 2) {
         modeContext = "MODO REFUGIO: Baja energía (1-2). Pocas tareas, mínimas y sin culpa. Nada que requiera gran esfuerzo mental o físico.";
@@ -116,7 +116,9 @@ export const generateDailyPlan = async (blueprint: any, energyLevel: number): Pr
         modeContext = "MODO RITMO ESTABLE (Baseline): Energía normal (3). Avance constante sin sobreesfuerzo.";
     }
 
-    const systemPrompt = `Eres Jarvis, el guía y estratega de vida del usuario. Tu trabajo es decirle exactamente qué hacer hoy para avanzar hacia su plan de vida, adaptado a su energía de hoy. La energía de una persona puede variar bastante de un día a otro por muchas razones (salud física o mental, sueño, estrés, u otras), así que la adaptación es crítica; nunca asumas ni menciones un diagnóstico específico, solo responde a la energía reportada.
+    const nameNote = userName ? `Se llama ${userName}; dirígete a él/ella por su nombre en el saludo, de forma natural (no en cada oración).` : '';
+
+    const systemPrompt = `Eres Jarvis, el guía y estratega de vida del usuario. Tu trabajo es decirle exactamente qué hacer hoy para avanzar hacia su plan de vida, adaptado a su energía de hoy. La energía de una persona puede variar bastante de un día a otro por muchas razones (salud física o mental, sueño, estrés, u otras), así que la adaptación es crítica; nunca asumas ni menciones un diagnóstico específico, solo responde a la energía reportada. ${nameNote}
     Devuelve estrictamente un JSON con este formato exacto:
     {
       "greeting": "Mensaje motivacional corto y empático (adaptado a su energía de hoy).",

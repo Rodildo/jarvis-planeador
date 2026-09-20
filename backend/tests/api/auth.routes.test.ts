@@ -12,6 +12,13 @@ const app = express();
 app.use(express.json());
 app.use('/api', apiRouter);
 
+const validRegisterBody = {
+    email: 'jorge@example.com',
+    password: 'a-strong-password',
+    firstName: 'Jorge',
+    lastName: 'Castillo',
+};
+
 describe('API Routes - Auth', () => {
     beforeEach(() => {
         jest.clearAllMocks();
@@ -23,21 +30,23 @@ describe('API Routes - Auth', () => {
 
         const response = await request(app)
             .post('/api/auth/register')
-            .send({ email: 'jorge@example.com', password: 'a-strong-password' });
+            .send(validRegisterBody);
 
         expect(response.status).toBe(201);
         expect(response.body.success).toBe(true);
         expect(typeof response.body.token).toBe('string');
         expect(typeof response.body.userId).toBe('string');
-        expect(createUser).toHaveBeenCalledTimes(1);
+        expect(response.body.firstName).toBe('Jorge');
+        expect(response.body.lastName).toBe('Castillo');
+        expect(createUser).toHaveBeenCalledWith(expect.any(String), 'jorge@example.com', expect.any(String), 'Jorge', 'Castillo');
     });
 
     it('POST /api/auth/register rejects an email that is already registered', async () => {
-        (getUserByEmail as jest.Mock).mockResolvedValue({ id: 'u1', email: 'jorge@example.com', password_hash: 'x' });
+        (getUserByEmail as jest.Mock).mockResolvedValue({ id: 'u1', email: 'jorge@example.com', password_hash: 'x', first_name: 'Jorge', last_name: 'Castillo' });
 
         const response = await request(app)
             .post('/api/auth/register')
-            .send({ email: 'jorge@example.com', password: 'a-strong-password' });
+            .send(validRegisterBody);
 
         expect(response.status).toBe(409);
     });
@@ -45,7 +54,25 @@ describe('API Routes - Auth', () => {
     it('POST /api/auth/register rejects a short password', async () => {
         const response = await request(app)
             .post('/api/auth/register')
-            .send({ email: 'jorge@example.com', password: 'short' });
+            .send({ ...validRegisterBody, password: 'short' });
+
+        expect(response.status).toBe(400);
+    });
+
+    it('POST /api/auth/register rejects an invalid email format', async () => {
+        const response = await request(app)
+            .post('/api/auth/register')
+            .send({ ...validRegisterBody, email: 'not-an-email' });
+
+        expect(response.status).toBe(400);
+    });
+
+    it('POST /api/auth/register rejects a missing first or last name', async () => {
+        const { firstName, ...withoutFirstName } = validRegisterBody;
+
+        const response = await request(app)
+            .post('/api/auth/register')
+            .send(withoutFirstName);
 
         expect(response.status).toBe(400);
     });

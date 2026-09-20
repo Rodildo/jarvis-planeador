@@ -1,57 +1,82 @@
 import { Router } from 'express';
 import crypto from 'crypto';
+import rateLimit from 'express-rate-limit';
 import { generateBlueprint, generateDailyPlan, generateMidDayAdjustment, LIFE_AREAS } from '../ai/gemini';
 import {
     saveBlueprint, getBlueprint, getBlueprintUpdatedAt, saveMorningLog, saveMiddayLog, saveDailyActions, getDailyLog,
     getRecentDailyLogs, hasBlueprint, saveOnboardingProgress, getOnboardingProgress, clearOnboardingProgress,
-    createUser, getUserByEmail
+    createUser, getUserByEmail, getUserById
 } from '../db/database';
-import { requireAuth, hashPassword, verifyPassword, signToken, AuthedRequest } from '../auth/auth';
+import { requireAuth, hashPassword, verifyPassword, signToken, isValidEmail, AuthedRequest } from '../auth/auth';
 
 export const apiRouter = Router();
 
 apiRouter.get('/version', (req, res) => {
-    res.json({ version: '5.0.0-life-guide' });
+    res.json({ version: '5.1.0-user-profile' });
 });
 
 apiRouter.get('/life-areas', (req, res) => {
     res.status(200).json({ success: true, areas: LIFE_AREAS });
 });
 
-apiRouter.post('/auth/register', async (req, res) => {
+// Protección básica contra abuso: limita cuántos registros/logins puede
+// intentar una misma IP en poco tiempo, sin depender de servicios externos.
+const registerLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 8,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Demasiados intentos de registro. Intenta de nuevo en unos minutos.' },
+});
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Demasiados intentos de inicio de sesión. Intenta de nuevo en unos minutos.' },
+});
+
+apiRouter.post('/auth/register', registerLimiter, async (req, res) => {
     try {
-        const { email, password } = req.body;
-        if (!email || !password) return res.status(400).json({ error: 'email and password are required' });
+        const { email, password, firstName, lastName } = req.body;
+        if (!email || !password || !firstName || !lastName) {
+            return res.status(400).json({ error: 'email, password, firstName and lastName are required' });
+        }
+        if (!isValidEmail(email)) return res.status(400).json({ error: 'Ingresa un correo con formato válido' });
         if (String(password).length < 8) return res.status(400).json({ error: 'password must be at least 8 characters' });
 
-        const existing = await getUserByEmail(email);
+        const normalizedEmail = String(email).trim().toLowerCase();
+        const existing = await getUserByEmail(normalizedEmail);
         if (existing) return res.status(409).json({ error: 'Email already registered' });
 
         const id = crypto.randomUUID();
         const passwordHash = await hashPassword(password);
-        await createUser(id, email, passwordHash);
+        const trimmedFirstName = String(firstName).trim();
+        const trimmedLastName = String(lastName).trim();
+        await createUser(id, normalizedEmail, passwordHash, trimmedFirstName, trimmedLastName);
 
         const token = signToken(id);
-        res.status(201).json({ success: true, token, userId: id });
+        res.status(201).json({ success: true, token, userId: id, firstName: trimmedFirstName, lastName: trimmedLastName });
     } catch (error: any) {
         console.error('Register Error:', error);
         res.status(500).json({ error: error.message || 'Internal server error' });
     }
 });
 
-apiRouter.post('/auth/login', async (req, res) => {
+apiRouter.post('/auth/login', loginLimiter, async (req, res) => {
     try {
         const { email, password } = req.body;
         if (!email || !password) return res.status(400).json({ error: 'email and password are required' });
 
-        const user = await getUserByEmail(email);
+        const normalizedEmail = String(email).trim().toLowerCase();
+        const user = await getUserByEmail(normalizedEmail);
         if (!user) return res.status(401).json({ error: 'Invalid email or password' });
 
         const valid = await verifyPassword(password, user.password_hash);
         if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
 
         const token = signToken(user.id);
-        res.status(200).json({ success: true, token, userId: user.id });
+        res.status(200).json({ success: true, token, userId: user.id, firstName: user.first_name, lastName: user.last_name });
     } catch (error: any) {
         console.error('Login Error:', error);
         res.status(500).json({ error: error.message || 'Internal server error' });
@@ -66,7 +91,13 @@ apiRouter.use(requireAuth);
 apiRouter.get('/profile', async (req: AuthedRequest, res) => {
     try {
         const complete = await hasBlueprint(req.userId!);
-        res.status(200).json({ success: true, hasBlueprint: complete });
+        const user = await getUserById(req.userId!);
+        res.status(200).json({
+            success: true,
+            hasBlueprint: complete,
+            firstName: user?.first_name ?? '',
+            lastName: user?.last_name ?? '',
+        });
     } catch (error: any) {
         console.error('Profile Check Error:', error);
         res.status(500).json({ error: error.message || 'Internal server error' });
@@ -163,7 +194,8 @@ apiRouter.post('/daily-plan', async (req: AuthedRequest, res) => {
         const blueprintData = await getBlueprint(userId);
         if (!blueprintData) return res.status(404).json({ error: 'Blueprint not found for user' });
 
-        const plan = await generateDailyPlan(JSON.parse(blueprintData), energyLevel);
+        const user = await getUserById(userId);
+        const plan = await generateDailyPlan(JSON.parse(blueprintData), energyLevel, user?.first_name);
         res.status(200).json({ success: true, plan });
     } catch (error: any) {
         console.error('Daily Plan Error:', error);

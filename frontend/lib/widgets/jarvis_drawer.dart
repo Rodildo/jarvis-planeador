@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../core/api_service.dart';
 
 class JarvisDrawer extends StatelessWidget {
   const JarvisDrawer({super.key});
@@ -11,6 +12,9 @@ class JarvisDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currentRoute = GoRouterState.of(context).uri.toString();
+    final displayName = [ApiService.firstName, ApiService.lastName]
+        .where((n) => n != null && n.isNotEmpty)
+        .join(' ');
     return Drawer(
       backgroundColor: Colors.transparent,
       child: ClipRRect(
@@ -37,7 +41,7 @@ class JarvisDrawer extends StatelessWidget {
                       ),
                       const SizedBox(height: 15),
                       Text(
-                        'Usuario Jarvis',
+                        displayName.isNotEmpty ? displayName : 'Usuario Jarvis',
                         style: GoogleFonts.outfit(
                           color: Colors.white,
                           fontSize: 20,

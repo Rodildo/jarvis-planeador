@@ -10,6 +10,11 @@ const getJwtSecret = (): string => {
     return secret;
 };
 
+// Formato razonable de email (RFC-simplificado); no verifica que el
+// correo exista, solo rechaza strings que obviamente no son un email.
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const isValidEmail = (email: string): boolean => EMAIL_REGEX.test(email.trim());
+
 export const hashPassword = (password: string): Promise<string> => bcrypt.hash(password, 10);
 
 export const verifyPassword = (password: string, hash: string): Promise<boolean> => bcrypt.compare(password, hash);
