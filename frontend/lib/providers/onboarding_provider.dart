@@ -30,7 +30,7 @@ class OnboardingProvider extends ChangeNotifier {
 
     try {
       final progress = await _api.getOnboardingProgress();
-      if (progress.isNotEmpty) {
+      if (progress.isNotEmpty && _isProgressCompatible(progress)) {
         messages = progress;
         questionCount = messages.where((m) => m['role'] == 'user').length;
         if (questionCount >= maxQuestions) {
@@ -44,11 +44,26 @@ class OnboardingProvider extends ChangeNotifier {
           // el indicador de área/progreso para que coincida.
           _syncAreaProgress();
         }
+      } else if (progress.isNotEmpty) {
+        // Progreso guardado de una versión anterior del brief (preguntas
+        // generadas por IA que ya no coinciden con el banco fijo actual, o
+        // corrupto por el bug de errores-como-preguntas). Se descarta y se
+        // empieza de cero, tanto local como en el backend.
+        messages = [];
+        questionCount = 0;
+        await _api.saveOnboardingProgress(messages);
+        _fetchNextQuestion();
       } else {
         _fetchNextQuestion();
       }
     } catch (e) {
-      errorMessage = e.toString();
+      // Si falla obtener el progreso (ej: backend cambió, endpoint removido,
+      // o datos corruptos), borramos el caché viejo y empezamos de cero.
+      // Esto evita que cambios backend dejen la app en estado inconsistente.
+      errorMessage = null;
+      messages = [];
+      questionCount = 0;
+      _fetchNextQuestion();
     } finally {
       isLoading = false;
       notifyListeners();
@@ -66,6 +81,21 @@ class OnboardingProvider extends ChangeNotifier {
     currentQuestionNumber = 0;
     notifyListeners();
     _fetchNextQuestion();
+  }
+
+  /// Compara el progreso guardado contra el banco fijo de preguntas
+  /// actual, pregunta por pregunta. Si alguna no coincide (venía de la IA
+  /// generándolas dinámicamente en una versión anterior, o el banco de
+  /// preguntas cambió), el progreso ya no es válido.
+  bool _isProgressCompatible(List<Map<String, String>> progress) {
+    int qIndex = 0;
+    for (final m in progress) {
+      if (m['role'] != 'jarvis') continue;
+      if (qIndex >= onboardingQuestions.length) return false;
+      if (m['text'] != onboardingQuestions[qIndex].question) return false;
+      qIndex++;
+    }
+    return true;
   }
 
   void _syncAreaProgress() {
