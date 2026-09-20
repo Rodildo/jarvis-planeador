@@ -16,7 +16,34 @@ class OnboardingProvider extends ChangeNotifier {
   String? errorMessage;
 
   OnboardingProvider() {
-    _fetchNextQuestion();
+    _initOnboarding();
+  }
+
+  Future<void> _initOnboarding() async {
+    isLoading = true;
+    notifyListeners();
+
+    try {
+      final progress = await _api.getOnboardingProgress();
+      if (progress.isNotEmpty) {
+        messages = progress;
+        questionCount = messages.where((m) => m['role'] == 'user').length;
+        if (questionCount >= maxQuestions) {
+          // Si ya respondió 5 pero por alguna razón no avanzó, finalizamos
+          await _finalizeOnboarding();
+        } else if (messages.last['role'] == 'user') {
+          // Si el último mensaje es del usuario, toca que Jarvis pregunte
+          await _fetchNextQuestion();
+        }
+      } else {
+        await _fetchNextQuestion();
+      }
+    } catch (e) {
+      errorMessage = e.toString();
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
   }
 
   @override
@@ -33,6 +60,7 @@ class OnboardingProvider extends ChangeNotifier {
     try {
       final question = await _api.getOnboardingQuestion(messages);
       messages.add({'role': 'jarvis', 'text': question});
+      await _api.saveOnboardingProgress(messages);
     } catch (e) {
       errorMessage = e.toString();
       messages.add({'role': 'jarvis', 'text': 'Error: $e'});
@@ -48,6 +76,9 @@ class OnboardingProvider extends ChangeNotifier {
     messages.add({'role': 'user', 'text': answer});
     questionCount++;
     notifyListeners();
+    
+    // Guardar progreso en el backend
+    await _api.saveOnboardingProgress(messages);
 
     if (questionCount >= maxQuestions) {
       return await _finalizeOnboarding();

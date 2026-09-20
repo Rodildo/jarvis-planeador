@@ -35,18 +35,28 @@ export const initDB = async (dbPath: string = './data/jarvis.sqlite'): Promise<v
                 if (err) reject(err);
                 
                 db.run(`
-                    CREATE TABLE IF NOT EXISTS daily_logs (
-                        user_id TEXT,
-                        date TEXT,
-                        energy_morning INTEGER,
-                        energy_midday INTEGER,
-                        morning_time DATETIME,
-                        actions_chosen TEXT,
-                        PRIMARY KEY (user_id, date)
+                    CREATE TABLE IF NOT EXISTS onboarding_progress (
+                        user_id TEXT PRIMARY KEY,
+                        messages TEXT NOT NULL,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                     )
                 `, (err) => {
                     if (err) reject(err);
-                    resolve();
+                    
+                    db.run(`
+                        CREATE TABLE IF NOT EXISTS daily_logs (
+                            user_id TEXT,
+                            date TEXT,
+                            energy_morning INTEGER,
+                            energy_midday INTEGER,
+                            morning_time DATETIME,
+                            actions_chosen TEXT,
+                            PRIMARY KEY (user_id, date)
+                        )
+                    `, (err) => {
+                        if (err) reject(err);
+                        resolve();
+                    });
                 });
             });
         });
@@ -69,6 +79,45 @@ export const getBlueprint = async (userId: string): Promise<string | null> => {
         db.get(`SELECT blueprint_data FROM blueprints WHERE user_id = ?`, [userId], (err, row: any) => {
             if (err) reject(err);
             else resolve(row ? row.blueprint_data : null);
+        });
+    });
+};
+
+export const hasBlueprint = async (userId: string): Promise<boolean> => {
+    return new Promise((resolve, reject) => {
+        db.get(`SELECT 1 FROM blueprints WHERE user_id = ?`, [userId], (err, row: any) => {
+            if (err) reject(err);
+            else resolve(!!row);
+        });
+    });
+};
+
+export const saveOnboardingProgress = async (userId: string, messages: any[]): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        const stmt = db.prepare(`INSERT OR REPLACE INTO onboarding_progress (user_id, messages) VALUES (?, ?)`);
+        stmt.run(userId, JSON.stringify(messages), (err: Error | null) => {
+            stmt.finalize();
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+};
+
+export const getOnboardingProgress = async (userId: string): Promise<any[] | null> => {
+    return new Promise((resolve, reject) => {
+        db.get(`SELECT messages FROM onboarding_progress WHERE user_id = ?`, [userId], (err, row: any) => {
+            if (err) reject(err);
+            else {
+                if (row && row.messages) {
+                    try {
+                        resolve(JSON.parse(row.messages));
+                    } catch (e) {
+                        resolve(null);
+                    }
+                } else {
+                    resolve(null);
+                }
+            }
         });
     });
 };

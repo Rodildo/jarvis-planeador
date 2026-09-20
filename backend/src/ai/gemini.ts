@@ -50,11 +50,9 @@ export const generateBlueprint = async (answers: any): Promise<any> => {
     const text = await callOpenRouter(systemPrompt, userPrompt, true);
     
     try {
-        let jsonStr = text;
-        if (jsonStr.startsWith('```json')) jsonStr = jsonStr.substring(7);
-        if (jsonStr.startsWith('```')) jsonStr = jsonStr.substring(3);
-        if (jsonStr.endsWith('```')) jsonStr = jsonStr.substring(0, jsonStr.length - 3);
-        return JSON.parse(jsonStr.trim());
+        const match = text.match(/\{[\s\S]*\}/);
+        if (!match) throw new Error("No JSON object found in response");
+        return JSON.parse(match[0].trim());
     } catch (err) {
         console.error("Failed to parse JSON:", text);
         throw err;
@@ -94,12 +92,11 @@ export const generateMorningOptions = async (blueprint: any, energyLevel: number
     const text = await callOpenRouter(systemPrompt, userPrompt, true);
 
     try {
-        let jsonStr = text;
-        if (jsonStr.startsWith('```json')) jsonStr = jsonStr.substring(7);
-        if (jsonStr.startsWith('```')) jsonStr = jsonStr.substring(3);
-        if (jsonStr.endsWith('```')) jsonStr = jsonStr.substring(0, jsonStr.length - 3);
-        return JSON.parse(jsonStr.trim());
+        const match = text.match(/\{[\s\S]*\}/);
+        if (!match) throw new Error("No JSON object found in morning options response");
+        return JSON.parse(match[0].trim());
     } catch (err) {
+        console.error("Failed to parse morning options JSON:", text);
         throw new Error("Failed to parse morning options JSON");
     }
 };

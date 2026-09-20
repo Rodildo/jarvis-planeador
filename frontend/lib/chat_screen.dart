@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'providers/chat_provider.dart';
+import 'widgets/jarvis_drawer.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -116,9 +117,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return Scaffold(
       extendBodyBehindAppBar: true,
+      drawer: const JarvisDrawer(),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
         title: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -186,34 +189,54 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: CircularProgressIndicator(color: Color(0xFF00E5FF), strokeWidth: 2),
                 ).animate().fadeIn(),
 
-              // Render Morning Options
-              if (provider.morningOptions != null && !provider.dayStarted)
+              // Render Morning Options or Selected Habits
+              if (provider.morningOptions != null)
                 Expanded(
                   child: ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    children: provider.morningOptions!.entries.map((entry) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 20),
-                            child: Text(entry.key.toUpperCase(), style: GoogleFonts.outfit(color: const Color(0xFF00E5FF), fontWeight: FontWeight.w600, letterSpacing: 1.5)),
-                          ),
-                          SizedBox(
-                            height: 170,
-                            child: ListView.builder(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: (entry.value as List).length,
-                              itemBuilder: (context, index) {
-                                return _buildOptionCard(entry.key, entry.value[index], provider);
-                              },
+                    children: [
+                      if (provider.dayStarted)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 20),
+                          child: Text("TUS HÁBITOS DE HOY", style: GoogleFonts.outfit(color: const Color(0xFFFF007F), fontWeight: FontWeight.w600, letterSpacing: 1.5)),
+                        ),
+                      ...provider.morningOptions!.entries.map((entry) {
+                        // If day started, only show the selected action for this goal
+                        if (provider.dayStarted) {
+                          final selectedOption = provider.selectedActions[entry.key];
+                          if (selectedOption == null) return const SizedBox.shrink();
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: _buildOptionCard(entry.key, selectedOption, provider),
+                          );
+                        }
+
+                        // Otherwise show all options for selection
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 20),
+                              child: Text(entry.key.toUpperCase(), style: GoogleFonts.outfit(color: const Color(0xFF00E5FF), fontWeight: FontWeight.w600, letterSpacing: 1.5)),
                             ),
-                          ),
-                        ],
-                      );
-                    }).toList(),
+                            SizedBox(
+                              height: 170,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: (entry.value as List).length,
+                                itemBuilder: (context, index) {
+                                  return _buildOptionCard(entry.key, entry.value[index], provider);
+                                },
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ],
                   ),
-                ),
+                )
+              else
+                const Spacer(),
 
               // Confirm Button
               if (canConfirm && !provider.dayStarted)

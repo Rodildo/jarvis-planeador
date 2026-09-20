@@ -45,8 +45,32 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      morningOptions = await _api.getBriefing(energyLevel);
-      jarvisMessage = "Aquí tienes tus opciones para hoy. Selecciona una intensidad por cada objetivo.";
+      final responseData = await _api.getBriefing(energyLevel);
+      
+      if (responseData.containsKey('greeting')) {
+        jarvisMessage = responseData['greeting'];
+      } else {
+        jarvisMessage = "Aquí tienes tus opciones para hoy. Selecciona una intensidad por cada objetivo.";
+      }
+
+      Map<String, dynamic> formattedOptions = {};
+      if (responseData.containsKey('goals') && responseData['goals'] is List) {
+        for (var goalData in responseData['goals']) {
+          String goalName = goalData['goal_name'] ?? 'Meta';
+          List options = goalData['options'] ?? [];
+          for (var opt in options) {
+            if (opt is Map<String, dynamic>) {
+              if (opt.containsKey('level') && !opt.containsKey('intensity')) {
+                opt['intensity'] = opt['level'];
+              }
+            }
+          }
+          formattedOptions[goalName] = options;
+        }
+        morningOptions = formattedOptions;
+      } else {
+        morningOptions = responseData;
+      }
     } catch (e) {
       jarvisMessage = "Error de conexión: $e";
     } finally {

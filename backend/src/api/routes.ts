@@ -1,13 +1,62 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { generateBlueprint, generateMorningOptions, generateMidDayAdjustment, generateNextOnboardingQuestion, transcribeAudio } from '../ai/gemini';
-import { saveBlueprint, getBlueprint, saveMorningLog, saveMiddayLog, saveDailyActions, getDailyLog } from '../db/database';
+import { saveBlueprint, getBlueprint, saveMorningLog, saveMiddayLog, saveDailyActions, getDailyLog, hasBlueprint, saveOnboardingProgress, getOnboardingProgress } from '../db/database';
 
 const upload = multer({ storage: multer.memoryStorage() });
 export const apiRouter = Router();
 
 apiRouter.get('/version', (req, res) => {
     res.json({ version: '3.0.0-openrouter' });
+});
+
+apiRouter.get('/profile/:userId', async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        const complete = await hasBlueprint(userId);
+        res.status(200).json({ success: true, hasBlueprint: complete });
+    } catch (error: any) {
+        console.error('Profile Check Error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
+
+apiRouter.get('/blueprint/:userId', async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        const blueprint = await getBlueprint(userId);
+        if (blueprint) {
+            res.status(200).json({ success: true, blueprint: JSON.parse(blueprint) });
+        } else {
+            res.status(404).json({ error: 'Blueprint not found' });
+        }
+    } catch (error: any) {
+        console.error('Get Blueprint Error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
+
+apiRouter.get('/onboarding/progress/:userId', async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        const messages = await getOnboardingProgress(userId);
+        res.status(200).json({ success: true, messages: messages || [] });
+    } catch (error: any) {
+        console.error('Get Onboarding Progress Error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
+
+apiRouter.post('/onboarding/progress', async (req, res) => {
+    try {
+        const { userId, messages } = req.body;
+        if (!userId || !messages) return res.status(400).json({ error: 'userId and messages are required' });
+        await saveOnboardingProgress(userId, messages);
+        res.status(200).json({ success: true });
+    } catch (error: any) {
+        console.error('Save Onboarding Progress Error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+    }
 });
 
 apiRouter.post('/assessment', async (req, res) => {

@@ -7,11 +7,22 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/onboarding_provider.dart';
 import 'providers/chat_provider.dart';
 import 'routes/app_router.dart';
+import 'core/api_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
-  final bool hasBlueprint = prefs.getBool('has_blueprint') ?? false;
+  bool hasBlueprint = prefs.getBool('has_blueprint') ?? false;
+  
+  if (!hasBlueprint) {
+    // Si no está en local, verificamos en el backend por si reinstaló la app
+    final api = ApiService();
+    hasBlueprint = await api.checkProfile();
+    if (hasBlueprint) {
+      await prefs.setBool('has_blueprint', true);
+    }
+  }
+  
   final initialLocation = hasBlueprint ? '/chat' : '/onboarding';
 
   runApp(
