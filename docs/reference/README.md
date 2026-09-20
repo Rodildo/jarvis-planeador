@@ -1,0 +1,21 @@
+# Documentación de referencia — Jarvis Planeador
+
+Esta carpeta es el contexto técnico completo y actualizado de la app, pensado para que una sesión de edición futura (humana o de IA) pueda retomar el proyecto sin tener que releer todo el código desde cero.
+
+**A diferencia de `docs/superpowers/` (specs/planes originales del diseño inicial, del 17 de septiembre de 2026, ya desactualizados en varios puntos) y de `procesos_historial.txt` (bitácora histórica de la Fase 1-2, también desactualizada), estos documentos reflejan el estado ACTUAL del código.** Si algo aquí contradice esos archivos viejos, este documento tiene razón — esos son historia, no verdad vigente.
+
+## Índice
+
+1. [01-overview.md](01-overview.md) — Qué es la app, para quién, stack tecnológico, estado actual.
+2. [02-backend.md](02-backend.md) — Cada endpoint de la API, esquema completo de la base de datos, modelo de auth/seguridad.
+3. [03-frontend.md](03-frontend.md) — Cada pantalla, cada provider, rutas, almacenamiento local, notificaciones.
+4. [04-data-model.md](04-data-model.md) — El banco de 50 preguntas, el esquema del Life Blueprint, el esquema del plan diario.
+5. [05-deployment.md](05-deployment.md) — Variables de entorno, Docker, flujo de despliegue en EasyPanel.
+6. [06-decisions.md](06-decisions.md) — Por qué se hizo cada cosa de la forma en que está, no solo qué se hizo.
+7. [07-known-gaps.md](07-known-gaps.md) — Lo que falta antes de un lanzamiento real, e ideas de mejora pendientes.
+
+## Cómo mantener esto vivo
+
+Cuando se edite el código de forma que alguno de estos documentos quede desactualizado (nuevo endpoint, nueva pantalla, cambio de esquema de datos, nueva decisión de arquitectura importante), hay que actualizar el archivo correspondiente en el mismo cambio — no dejarlo para después. Un documento de referencia que miente es peor que no tener documento.
+
+**Última actualización:** 20 de septiembre de 2026, después de: multiusuario con auth real, brief de 50 preguntas con banco fijo, plan diario en 3 bloques, notificaciones 3x/día, historial con predicción de energía, foto de perfil, y política de privacidad/términos.
