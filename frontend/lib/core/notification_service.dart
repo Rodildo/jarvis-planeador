@@ -5,16 +5,18 @@ import 'package:go_router/go_router.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
-/// Recordatorios locales de Jarvis: el chequeo matutino de energía (diario,
-/// hora fija) y el chequeo de mitad de día (una sola vez, 6h después de
-/// confirmar el día). No depende de un servidor push: todo se agenda en el
-/// propio dispositivo con `flutter_local_notifications`.
+/// Recordatorios locales de Jarvis, 3 veces al día: chequeo matutino de
+/// energía (diario, hora fija), chequeo de mitad de día (una vez, 6h
+/// después de confirmar el día) y recordatorio nocturno para cerrar el
+/// día (diario, hora fija). No depende de un servidor push: todo se
+/// agenda en el propio dispositivo con `flutter_local_notifications`.
 class NotificationService {
   NotificationService._();
   static final NotificationService instance = NotificationService._();
 
   static const int _morningNotificationId = 1;
   static const int _middayNotificationId = 2;
+  static const int _nightNotificationId = 3;
 
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   GoRouter? _router;
@@ -67,50 +69,79 @@ class NotificationService {
     _router?.go('/chat');
   }
 
-  Future<void> scheduleMorningReminder() {
-    return _plugin.zonedSchedule(
-      id: _morningNotificationId,
-      title: 'Buenos días, jefe',
-      body: '¿Cómo está la batería hoy? Reporta tu energía del 1 al 5.',
-      scheduledDate: _nextInstanceOfLocalTime(8, 0),
-      notificationDetails: const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'morning_check_channel',
-          'Chequeo matutino',
-          channelDescription: 'Recordatorio diario para reportar tu nivel de energía',
-          importance: Importance.high,
-          priority: Priority.high,
-        ),
-        iOS: DarwinNotificationDetails(),
-      ),
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      matchDateTimeComponents: DateTimeComponents.time,
-      payload: 'morning',
-    );
+  // Todos los métodos de agendar/cancelar tragan sus propios errores: una
+  // notificación es una funcionalidad secundaria y nunca debe poder tumbar
+  // un flujo real (login, terminar el brief, generar el plan del día) solo
+  // porque falló el agendado en un dispositivo específico.
+  Future<void> _safeSchedule(String label, Future<void> Function() action) async {
+    try {
+      await action();
+    } catch (e) {
+      debugPrint('NotificationService.$label failed, continuing without it: $e');
+    }
   }
 
-  Future<void> scheduleMiddayCheck(Duration delay) {
-    return _plugin.zonedSchedule(
-      id: _middayNotificationId,
-      title: 'Chequeo de mitad de día',
-      body: 'Han pasado 6 horas. ¿Cómo está tu energía ahora?',
-      scheduledDate: tz.TZDateTime.now(tz.local).add(delay),
-      notificationDetails: const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'midday_check_channel',
-          'Chequeo de 6 horas',
-          channelDescription: 'Seguimiento de energía a mitad del día',
-          importance: Importance.high,
-          priority: Priority.high,
+  Future<void> scheduleMorningReminder() => _safeSchedule('scheduleMorningReminder', () => _plugin.zonedSchedule(
+        id: _morningNotificationId,
+        title: 'Buenos días, jefe',
+        body: '¿Cómo está la batería hoy? Reporta tu energía del 1 al 5.',
+        scheduledDate: _nextInstanceOfLocalTime(8, 0),
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'morning_check_channel',
+            'Chequeo matutino',
+            channelDescription: 'Recordatorio diario para reportar tu nivel de energía',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+          iOS: DarwinNotificationDetails(),
         ),
-        iOS: DarwinNotificationDetails(),
-      ),
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      payload: 'midday',
-    );
-  }
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        matchDateTimeComponents: DateTimeComponents.time,
+        payload: 'morning',
+      ));
 
-  Future<void> cancelMiddayCheck() => _plugin.cancel(id: _middayNotificationId);
+  Future<void> scheduleMiddayCheck(Duration delay) => _safeSchedule('scheduleMiddayCheck', () => _plugin.zonedSchedule(
+        id: _middayNotificationId,
+        title: 'Chequeo de mitad de día',
+        body: 'Han pasado 6 horas. ¿Cómo está tu energía ahora?',
+        scheduledDate: tz.TZDateTime.now(tz.local).add(delay),
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'midday_check_channel',
+            'Chequeo de 6 horas',
+            channelDescription: 'Seguimiento de energía a mitad del día',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+          iOS: DarwinNotificationDetails(),
+        ),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        payload: 'midday',
+      ));
+
+  /// Tercer recordatorio del día: cierre nocturno, hora fija recurrente.
+  Future<void> scheduleNightReminder() => _safeSchedule('scheduleNightReminder', () => _plugin.zonedSchedule(
+        id: _nightNotificationId,
+        title: 'Cierra tu día',
+        body: 'Revisa tus tareas de la noche y márcalas antes de descansar.',
+        scheduledDate: _nextInstanceOfLocalTime(21, 0),
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'night_check_channel',
+            'Cierre nocturno',
+            channelDescription: 'Recordatorio diario para revisar tus tareas de la noche',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+          iOS: DarwinNotificationDetails(),
+        ),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        matchDateTimeComponents: DateTimeComponents.time,
+        payload: 'night',
+      ));
+
+  Future<void> cancelMiddayCheck() => _safeSchedule('cancelMiddayCheck', () => _plugin.cancel(id: _middayNotificationId));
 
   tz.TZDateTime _nextInstanceOfLocalTime(int hour, int minute) {
     final now = tz.TZDateTime.now(tz.local);

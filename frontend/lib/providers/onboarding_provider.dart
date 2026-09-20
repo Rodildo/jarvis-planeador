@@ -142,6 +142,11 @@ class OnboardingProvider extends ChangeNotifier {
     _api.saveOnboardingProgress(messages);
   }
 
+  /// Si el usuario no entiende o no quiere responder una pregunta, avanza
+  /// igual que una respuesta normal pero con un texto neutral, para que la
+  /// IA no construya conclusiones sobre una respuesta que no existió.
+  Future<bool> skipQuestion() => submitAnswer('(el usuario prefirió no responder esta pregunta)');
+
   Future<bool> submitAnswer(String answer) async {
     if (answer.trim().isEmpty) return false;
 
@@ -176,6 +181,7 @@ class OnboardingProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('has_blueprint', true);
       await NotificationService.instance.scheduleMorningReminder();
+      await NotificationService.instance.scheduleNightReminder();
 
       return true; // Navigates to Chat
     } catch (e) {

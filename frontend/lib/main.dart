@@ -45,6 +45,7 @@ void main() async {
     await NotificationService.instance.init(router);
     if (ApiService.isLoggedIn && hasBlueprint) {
       await NotificationService.instance.scheduleMorningReminder();
+      await NotificationService.instance.scheduleNightReminder();
     }
   } catch (e) {
     debugPrint('Notification init failed, continuing without it: $e');
@@ -69,7 +70,7 @@ class JarvisApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Jarvis',
+      title: 'Jarvis Planeador',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(

@@ -23,6 +23,40 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _controller.addListener(() {
       setState(() {});
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowIntroDialog());
+  }
+
+  void _maybeShowIntroDialog() {
+    if (!mounted) return;
+    final provider = context.read<OnboardingProvider>();
+    if (provider.questionCount != 0) return;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF131B2F),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.info_outline, color: Color(0xFF00E5FF)),
+            const SizedBox(width: 10),
+            Text('Antes de empezar', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          'Responder este test con la mayor sinceridad posible garantiza que Jarvis pueda definir tu proyecto de vida y hacia dónde vas enfocado en los próximos años, de la forma más eficaz posible.\n\n'
+          'Si no entiendes una pregunta, simplemente responde "no sé" o usa el botón de "Saltar pregunta".',
+          style: GoogleFonts.inter(color: Colors.white70, height: 1.5, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text('Entendido, empezar', style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -55,6 +89,29 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void _goBack(OnboardingProvider provider) {
     _controller.clear();
     provider.goBack();
+  }
+
+  void _skip(OnboardingProvider provider) async {
+    if (provider.isLoading) return;
+    _controller.clear();
+    final shouldNavigate = await provider.skipQuestion();
+    if (shouldNavigate && mounted) {
+      context.go('/chat');
+    }
+  }
+
+  Widget _buildSmallActionButton(IconData icon, String label, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: Colors.white54),
+          const SizedBox(width: 4),
+          Text(label, style: GoogleFonts.inter(color: Colors.white54, fontSize: 12)),
+        ],
+      ),
+    );
   }
 
   Widget _buildAnswerArea(OnboardingProvider provider) {
@@ -254,23 +311,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
+                        children: [
+                          if (provider.canGoBack) ...[
+                            _buildSmallActionButton(Icons.arrow_back_ios_new, 'Atrás', () => _goBack(provider)),
+                            const SizedBox(width: 16),
+                          ],
+                          if (provider.questionCount < provider.maxQuestions && !provider.isLoading)
+                            _buildSmallActionButton(Icons.skip_next, 'Saltar pregunta', () => _skip(provider)),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
-                            children: [
-                              if (provider.canGoBack)
-                                GestureDetector(
-                                  onTap: () => _goBack(provider),
-                                  child: const Padding(
-                                    padding: EdgeInsets.only(right: 8),
-                                    child: Icon(Icons.arrow_back_ios_new, size: 14, color: Colors.white54),
-                                  ),
-                                ),
-                              Text(
-                                'Área ${provider.currentAreaIndex + 1}/5 · ${provider.currentAreaLabel}',
-                                style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
-                              ),
-                            ],
+                          Text(
+                            'Área ${provider.currentAreaIndex + 1}/5 · ${provider.currentAreaLabel}',
+                            style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
                           ),
                           Text(
                             '${provider.questionCount}/${provider.maxQuestions}',

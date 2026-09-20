@@ -57,6 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final hasBlueprint = _isRegisterMode ? false : await ApiService().checkProfile();
     if (hasBlueprint) {
       await NotificationService.instance.scheduleMorningReminder();
+      await NotificationService.instance.scheduleNightReminder();
     }
     if (!mounted) return;
     context.go(hasBlueprint ? '/chat' : '/onboarding');
@@ -99,7 +100,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           children: [
                             const Icon(Icons.blur_on, color: Color(0xFF00E5FF), size: 28),
                             const SizedBox(width: 10),
-                            Text('JARVIS', style: GoogleFonts.outfit(fontWeight: FontWeight.w600, letterSpacing: 4.0, color: Colors.white)),
+                            Flexible(
+                              child: Text(
+                                'JARVIS PLANEADOR',
+                                style: GoogleFonts.outfit(fontWeight: FontWeight.w600, letterSpacing: 1.5, fontSize: 18, color: Colors.white),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 8),

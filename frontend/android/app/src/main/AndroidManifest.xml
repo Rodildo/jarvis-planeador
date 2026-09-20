@@ -4,7 +4,7 @@
          diarios/de mitad de día si el dispositivo se reinicia. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <application
-        android:label="jarvis"
+        android:label="Jarvis Planeador"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

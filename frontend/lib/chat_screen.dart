@@ -200,7 +200,13 @@ class _ChatScreenState extends State<ChatScreen> {
                 .scale(begin: const Offset(1,1), end: const Offset(1.2, 1.2), duration: 2.seconds)
                 .shimmer(duration: 2500.ms, color: Colors.white),
             const SizedBox(width: 10),
-            Text('JARVIS', style: GoogleFonts.outfit(fontWeight: FontWeight.w600, letterSpacing: 4.0, color: Colors.white)),
+            Flexible(
+              child: Text(
+                'JARVIS PLANEADOR',
+                style: GoogleFonts.outfit(fontWeight: FontWeight.w600, letterSpacing: 1.5, fontSize: 15, color: Colors.white),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         centerTitle: true,
