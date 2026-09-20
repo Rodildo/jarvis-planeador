@@ -72,6 +72,13 @@ class JarvisDrawer extends StatelessWidget {
                   route: '/history',
                   isSelected: currentRoute == '/history',
                 ),
+                _buildDrawerItem(
+                  context,
+                  icon: Icons.settings_outlined,
+                  title: 'Mi Cuenta',
+                  route: '/account',
+                  isSelected: currentRoute == '/account',
+                ),
                 const Divider(color: Colors.white12, height: 32),
                 ListTile(
                   leading: const Icon(Icons.logout, color: Colors.white54),

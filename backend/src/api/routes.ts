@@ -5,7 +5,7 @@ import { generateBlueprint, generateDailyPlan, generateMidDayAdjustment, LIFE_AR
 import {
     saveBlueprint, getBlueprint, getBlueprintUpdatedAt, saveMorningLog, saveMiddayLog, saveDailyActions, getDailyLog,
     getRecentDailyLogs, hasBlueprint, saveOnboardingProgress, getOnboardingProgress, clearOnboardingProgress,
-    createUser, getUserByEmail, getUserById
+    createUser, getUserByEmail, getUserById, updateUserName, updateUserPassword, deleteUserAccount
 } from '../db/database';
 import { requireAuth, hashPassword, verifyPassword, signToken, isValidEmail, AuthedRequest } from '../auth/auth';
 
@@ -34,6 +34,17 @@ const loginLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: 'Demasiados intentos de inicio de sesión. Intenta de nuevo en unos minutos.' },
+});
+
+// Estos endpoints le pegan a OpenRouter (cuestan dinero real por cada
+// llamada), así que además de proteger contra abuso, este límite protege
+// contra un bug en el cliente que dispare llamadas en bucle.
+const aiCostLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    limit: 15,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Demasiadas solicitudes a Jarvis en poco tiempo. Intenta de nuevo en un rato.' },
 });
 
 apiRouter.post('/auth/register', registerLimiter, async (req, res) => {
@@ -104,6 +115,64 @@ apiRouter.get('/profile', async (req: AuthedRequest, res) => {
     }
 });
 
+apiRouter.patch('/profile', async (req: AuthedRequest, res) => {
+    try {
+        const { firstName, lastName } = req.body;
+        const trimmedFirstName = String(firstName ?? '').trim();
+        const trimmedLastName = String(lastName ?? '').trim();
+        if (!trimmedFirstName || !trimmedLastName) {
+            return res.status(400).json({ error: 'firstName and lastName are required' });
+        }
+        await updateUserName(req.userId!, trimmedFirstName, trimmedLastName);
+        res.status(200).json({ success: true, firstName: trimmedFirstName, lastName: trimmedLastName });
+    } catch (error: any) {
+        console.error('Update Profile Error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
+
+apiRouter.post('/auth/change-password', async (req: AuthedRequest, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ error: 'currentPassword and newPassword are required' });
+        }
+        if (String(newPassword).length < 8) return res.status(400).json({ error: 'newPassword must be at least 8 characters' });
+
+        const user = await getUserById(req.userId!);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const valid = await verifyPassword(currentPassword, user.password_hash);
+        if (!valid) return res.status(401).json({ error: 'La contraseña actual no es correcta' });
+
+        const newHash = await hashPassword(newPassword);
+        await updateUserPassword(user.id, newHash);
+        res.status(200).json({ success: true });
+    } catch (error: any) {
+        console.error('Change Password Error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
+
+apiRouter.delete('/account', async (req: AuthedRequest, res) => {
+    try {
+        const { password } = req.body;
+        if (!password) return res.status(400).json({ error: 'password is required to confirm account deletion' });
+
+        const user = await getUserById(req.userId!);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const valid = await verifyPassword(password, user.password_hash);
+        if (!valid) return res.status(401).json({ error: 'Contraseña incorrecta' });
+
+        await deleteUserAccount(req.userId!);
+        res.status(200).json({ success: true });
+    } catch (error: any) {
+        console.error('Delete Account Error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
+
 apiRouter.get('/blueprint', async (req: AuthedRequest, res) => {
     try {
         const blueprint = await getBlueprint(req.userId!);
@@ -141,7 +210,7 @@ apiRouter.post('/onboarding/progress', async (req: AuthedRequest, res) => {
     }
 });
 
-apiRouter.post('/assessment', async (req: AuthedRequest, res) => {
+apiRouter.post('/assessment', aiCostLimiter, async (req: AuthedRequest, res) => {
     try {
         const { answers } = req.body;
         if (!answers) return res.status(400).json({ error: 'answers is required' });
@@ -183,7 +252,7 @@ apiRouter.get('/history', async (req: AuthedRequest, res) => {
     }
 });
 
-apiRouter.post('/daily-plan', async (req: AuthedRequest, res) => {
+apiRouter.post('/daily-plan', aiCostLimiter, async (req: AuthedRequest, res) => {
     try {
         const { date, energyLevel } = req.body;
         if (!date || energyLevel === undefined) return res.status(400).json({ error: 'date and energyLevel are required' });
@@ -216,7 +285,7 @@ apiRouter.post('/daily-actions', async (req: AuthedRequest, res) => {
     }
 });
 
-apiRouter.post('/midday', async (req: AuthedRequest, res) => {
+apiRouter.post('/midday', aiCostLimiter, async (req: AuthedRequest, res) => {
     try {
         const { date, energyLevel } = req.body;
         if (!date || energyLevel === undefined) return res.status(400).json({ error: 'Missing fields' });

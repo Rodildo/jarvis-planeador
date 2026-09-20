@@ -57,7 +57,7 @@ class _BlueprintScreenState extends State<BlueprintScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _error = 'No se pudo cargar tu plan. Revisa tu conexión e intenta de nuevo.';
           _isLoading = false;
         });
       }
@@ -82,9 +82,9 @@ class _BlueprintScreenState extends State<BlueprintScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
           : _error != null
-              ? Center(child: Text('Error: $_error', style: const TextStyle(color: Colors.red)))
+              ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
               : _blueprint == null
-                  ? const Center(child: Text('No blueprint found'))
+                  ? const Center(child: Text('Todavía no tienes un Life Blueprint.', style: TextStyle(color: Colors.white54)))
                   : _buildBlueprintContent(),
     );
   }

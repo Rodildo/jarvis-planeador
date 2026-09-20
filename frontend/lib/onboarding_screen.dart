@@ -79,11 +79,56 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
-  void _retryFinalize(OnboardingProvider provider) async {
+  void _confirmReview(OnboardingProvider provider) async {
     final shouldNavigate = await provider.finalizeOnboarding();
     if (shouldNavigate && mounted) {
       context.go('/chat');
     }
+  }
+
+  Future<void> _editAnswer(OnboardingProvider provider, int index, String question, String currentAnswer) async {
+    final controller = TextEditingController(text: currentAnswer);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF131B2F),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Editar respuesta', style: GoogleFonts.outfit(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(question, style: GoogleFonts.inter(color: Colors.white54, fontSize: 12, height: 1.4)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              maxLines: 4,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.white.withValues(alpha: 0.05),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text('Cancelar', style: GoogleFonts.inter(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () {
+              provider.updateAnswer(index, controller.text);
+              Navigator.pop(dialogContext);
+            },
+            child: Text('Guardar', style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _goBack(OnboardingProvider provider) {
@@ -115,30 +160,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Widget _buildAnswerArea(OnboardingProvider provider) {
-    final waitingToFinalize = provider.questionCount >= provider.maxQuestions;
-
-    // Ya se respondieron las 50 preguntas pero falló la generación del
-    // blueprint (único paso que depende de la IA): se ofrece reintentar en
-    // vez de perder las respuestas.
-    if (waitingToFinalize && provider.errorMessage != null) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-        child: ElevatedButton(
-          onPressed: provider.isLoading ? null : () => _retryFinalize(provider),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF00E5FF),
-            foregroundColor: const Color(0xFF070B14),
-            minimumSize: const Size(double.infinity, 52),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          ),
-          child: Text('Reintentar', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15)),
-        ),
-      );
-    }
-
-    // Generando el blueprint (o esperando la primera pregunta): no hay
-    // nada que responder todavía.
-    if (waitingToFinalize || provider.questionCount >= onboardingQuestions.length) {
+    if (provider.questionCount >= onboardingQuestions.length) {
       return const SizedBox.shrink();
     }
 
@@ -281,28 +303,92 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final provider = context.watch<OnboardingProvider>();
-
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        title: Text('Building Blueprint', style: GoogleFonts.outfit(fontWeight: FontWeight.w300, fontSize: 16, letterSpacing: 2)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
+  Widget _buildReviewItem(OnboardingProvider provider, int index, String question, String answer) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment.topLeft,
-            radius: 1.5,
-            colors: [Color(0xFF131B2F), Color(0xFF070B14)],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(question, style: GoogleFonts.inter(color: Colors.white54, fontSize: 12, height: 1.4)),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: Text(answer, style: GoogleFonts.inter(color: Colors.white, fontSize: 14, height: 1.4))),
+              const SizedBox(width: 10),
+              GestureDetector(
+                onTap: () => _editAnswer(provider, index, question, answer),
+                child: const Icon(Icons.edit_outlined, color: Color(0xFF00E5FF), size: 18),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviewBody(OnboardingProvider provider) {
+    final pairs = provider.reviewPairs;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSmallActionButton(Icons.arrow_back_ios_new, 'Editar la última pregunta', () => _goBack(provider)),
+              const SizedBox(height: 10),
+              Text(
+                'Revisa tus respuestas',
+                style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Toca el lápiz para corregir cualquier respuesta antes de generar tu Life Blueprint.',
+                style: GoogleFonts.inter(color: Colors.white54, fontSize: 12, height: 1.4),
+              ),
+            ],
           ),
         ),
-        child: SafeArea(
-          child: Column(
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            itemCount: pairs.length,
+            itemBuilder: (context, index) => _buildReviewItem(provider, index, pairs[index].key, pairs[index].value),
+          ),
+        ),
+        if (provider.errorMessage != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Text(provider.errorMessage!, style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: ElevatedButton(
+            onPressed: provider.isLoading ? null : () => _confirmReview(provider),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00E5FF),
+              foregroundColor: const Color(0xFF070B14),
+              minimumSize: const Size(double.infinity, 52),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            child: provider.isLoading
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF070B14)))
+                : Text('Confirmar y generar mi Blueprint', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChatBody(OnboardingProvider provider) {
+    return Column(
             children: [
               if (provider.currentAreaLabel != null)
                 Padding(
@@ -400,7 +486,31 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
               _buildAnswerArea(provider),
             ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<OnboardingProvider>();
+
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        title: Text('Building Blueprint', style: GoogleFonts.outfit(fontWeight: FontWeight.w300, fontSize: 16, letterSpacing: 2)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.topLeft,
+            radius: 1.5,
+            colors: [Color(0xFF131B2F), Color(0xFF070B14)],
           ),
+        ),
+        child: SafeArea(
+          child: provider.reviewMode ? _buildReviewBody(provider) : _buildChatBody(provider),
         ),
       ),
     );

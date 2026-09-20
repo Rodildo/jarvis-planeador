@@ -5,6 +5,7 @@ import '../onboarding_screen.dart';
 import '../chat_screen.dart';
 import '../blueprint_screen.dart';
 import '../history_screen.dart';
+import '../account_screen.dart';
 
 GoRouter getAppRouter(String initialLocation) {
   return GoRouter(
@@ -55,6 +56,16 @@ GoRouter getAppRouter(String initialLocation) {
       pageBuilder: (context, state) => CustomTransitionPage(
         key: state.pageKey,
         child: const HistoryScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
+    ),
+    GoRoute(
+      path: '/account',
+      pageBuilder: (context, state) => CustomTransitionPage(
+        key: state.pageKey,
+        child: const AccountScreen(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
         },

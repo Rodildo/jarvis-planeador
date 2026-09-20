@@ -88,7 +88,7 @@ class ChatProvider extends ChangeNotifier {
       await _persistState();
       await NotificationService.instance.scheduleMiddayCheck(const Duration(hours: 6));
     } catch (e) {
-      jarvisMessage = "Error de conexión: $e";
+      jarvisMessage = "${e.toString().replaceFirst('Exception: ', '')} Revisa tu conexión e intenta de nuevo.";
     } finally {
       isLoading = false;
       notifyListeners();
@@ -143,7 +143,7 @@ class ChatProvider extends ChangeNotifier {
       jarvisMessage = await _api.triggerMiddayCheck(energyLevel);
       showMiddayInput = false;
     } catch (e) {
-      jarvisMessage = "Error en el chequeo: $e";
+      jarvisMessage = "${e.toString().replaceFirst('Exception: ', '')} Revisa tu conexión e intenta de nuevo.";
     } finally {
       isLoading = false;
       notifyListeners();

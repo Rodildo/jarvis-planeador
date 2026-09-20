@@ -63,6 +63,40 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return '${_weekdays[date.weekday - 1]} ${date.day} ${_months[date.month - 1]}';
   }
 
+  /// Días consecutivos (contando desde hoy, o desde ayer si todavía no
+  /// hizo el chequeo de hoy) con al menos un registro de energía matutina.
+  int _computeStreak() {
+    final dateSet = _logs
+        .map((l) => DateTime.tryParse(l['date']?.toString() ?? ''))
+        .whereType<DateTime>()
+        .map((d) => DateTime(d.year, d.month, d.day))
+        .toSet();
+    if (dateSet.isEmpty) return 0;
+
+    final today = DateTime.now();
+    var cursor = DateTime(today.year, today.month, today.day);
+    if (!dateSet.contains(cursor)) {
+      cursor = cursor.subtract(const Duration(days: 1));
+    }
+
+    int streak = 0;
+    while (dateSet.contains(cursor)) {
+      streak++;
+      cursor = cursor.subtract(const Duration(days: 1));
+    }
+    return streak;
+  }
+
+  double? _weeklyAverage() {
+    final weekAgo = DateTime.now().subtract(const Duration(days: 7));
+    final recentLevels = _logs.where((l) {
+      final date = DateTime.tryParse(l['date']?.toString() ?? '');
+      return date != null && date.isAfter(weekAgo) && l['energy_morning'] != null;
+    }).map((l) => (l['energy_morning'] as num).toDouble());
+    if (recentLevels.isEmpty) return null;
+    return recentLevels.reduce((a, b) => a + b) / recentLevels.length;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -91,17 +125,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       style: GoogleFonts.inter(color: Colors.white70, fontSize: 15, height: 1.5),
                     ),
                   )
-                : _buildList(),
+                : _buildBody(),
       ),
     );
   }
 
-  Widget _buildList() {
+  Widget _buildBody() {
     return ListView.builder(
       padding: const EdgeInsets.all(20),
-      itemCount: _logs.length,
+      itemCount: _logs.length + 1,
       itemBuilder: (context, index) {
-        final log = _logs[index];
+        if (index == 0) return _buildInsightsCard();
+        final log = _logs[index - 1];
         final habits = _habitCount(log['actions_chosen']);
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -138,6 +173,73 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
         ).animate(delay: (index * 30).ms).fadeIn(duration: 300.ms).slideX(begin: 0.05, end: 0);
       },
+    );
+  }
+
+  Widget _buildInsightsCard() {
+    final streak = _computeStreak();
+    final avg = _weeklyAverage();
+    final chronological = _logs.reversed.toList(); // más viejo -> más nuevo, para el gráfico
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildStat(Icons.local_fire_department, '$streak', streak == 1 ? 'día seguido' : 'días seguidos', const Color(0xFFFF007F)),
+              _buildStat(Icons.bolt, avg != null ? avg.toStringAsFixed(1) : '—', 'promedio 7 días', const Color(0xFF00E5FF)),
+            ],
+          ),
+          const SizedBox(height: 22),
+          Text('ENERGÍA MATUTINA', style: GoogleFonts.outfit(color: Colors.white38, fontSize: 11, letterSpacing: 1)),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 60,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: chronological.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 6),
+              itemBuilder: (context, index) {
+                final log = chronological[index];
+                final level = log['energy_morning'];
+                final parsedLevel = level == null ? 0 : (level is int ? level : int.tryParse(level.toString()) ?? 0);
+                final color = _energyColor(level);
+                return Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Container(
+                    width: 10,
+                    height: (parsedLevel / 5 * 50).clamp(4, 50).toDouble(),
+                    decoration: BoxDecoration(
+                      color: level == null ? Colors.white12 : color,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStat(IconData icon, String value, String label, Color color) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 22),
+        const SizedBox(height: 6),
+        Text(value, style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)),
+        Text(label, style: GoogleFonts.inter(color: Colors.white54, fontSize: 11)),
+      ],
     );
   }
 

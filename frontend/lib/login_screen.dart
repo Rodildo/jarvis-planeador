@@ -22,8 +22,19 @@ class _LoginScreenState extends State<LoginScreen> {
   final _lastNameController = TextEditingController();
   bool _isRegisterMode = false;
   String? _localError;
+  String? _sessionExpiredMessage;
 
   static final _emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+
+  @override
+  void initState() {
+    super.initState();
+    // Se muestra una sola vez: si el usuario llegó aquí porque su token
+    // expiró en medio de una sesión, se lo explicamos en vez de dejarlo
+    // preguntándose por qué lo sacamos.
+    _sessionExpiredMessage = ApiService.sessionExpiredMessage;
+    ApiService.sessionExpiredMessage = null;
+  }
 
   @override
   void dispose() {
@@ -116,6 +127,26 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
                         ),
                         const SizedBox(height: 28),
+                        if (_sessionExpiredMessage != null) ...[
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFD700).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFFFD700).withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.info_outline, color: Color(0xFFFFD700), size: 18),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(_sessionExpiredMessage!, style: GoogleFonts.inter(color: const Color(0xFFFFD700), fontSize: 12)),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
                         if (_isRegisterMode) ...[
                           Row(
                             children: [

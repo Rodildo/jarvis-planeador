@@ -20,6 +20,11 @@ class ApiService {
   /// revocado), para que la app pueda cerrar sesión y volver a /login.
   static VoidCallback? onUnauthorized;
 
+  /// Mensaje a mostrar una sola vez en la pantalla de login después de que
+  /// el token quedó inválido en medio de una sesión (no aplica a un login
+  /// fallido normal, ese ya tiene su propio mensaje de error).
+  static String? sessionExpiredMessage;
+
   static bool get isLoggedIn => _token != null;
   static String? get firstName => _firstName;
   static String? get lastName => _lastName;
@@ -57,8 +62,24 @@ class ApiService {
         if (_token != null) 'Authorization': 'Bearer $_token',
       };
 
+  /// Extrae el mensaje de error del backend si viene en formato legible
+  /// (ej. límites de solicitudes, validaciones), y si no, usa uno genérico
+  /// en vez de mostrarle al usuario el cuerpo crudo de la respuesta.
+  String _friendlyError(http.Response response, String fallback) {
+    try {
+      final data = jsonDecode(response.body);
+      final error = data['error'];
+      if (error is String && error.isNotEmpty) return error;
+    } catch (_) {}
+    return fallback;
+  }
+
   void _reportIfUnauthorized(http.Response response) {
-    if (response.statusCode == 401) onUnauthorized?.call();
+    if (response.statusCode == 401) {
+      sessionExpiredMessage = 'Tu sesión expiró. Inicia sesión de nuevo.';
+      logout();
+      onUnauthorized?.call();
+    }
   }
 
   Future<void> register(String email, String password, String firstName, String lastName) async {
@@ -110,6 +131,53 @@ class ApiService {
     return false;
   }
 
+  Future<void> updateProfile(String firstName, String lastName) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/profile'),
+      headers: _headers,
+      body: jsonEncode({'firstName': firstName, 'lastName': lastName}),
+    );
+    _reportIfUnauthorized(response);
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      _firstName = data['firstName'] ?? firstName;
+      _lastName = data['lastName'] ?? lastName;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_firstNamePrefsKey, _firstName!);
+      await prefs.setString(_lastNamePrefsKey, _lastName!);
+      return;
+    }
+    throw Exception(data['error'] ?? 'No se pudo actualizar tu perfil.');
+  }
+
+  Future<void> changePassword(String currentPassword, String newPassword) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/change-password'),
+      headers: _headers,
+      body: jsonEncode({'currentPassword': currentPassword, 'newPassword': newPassword}),
+    );
+    _reportIfUnauthorized(response);
+    if (response.statusCode == 200) return;
+    final data = jsonDecode(response.body);
+    throw Exception(data['error'] ?? 'No se pudo cambiar tu contraseña.');
+  }
+
+  /// Elimina la cuenta (y todos sus datos) en el backend, y limpia la
+  /// sesión local si tiene éxito.
+  Future<void> deleteAccount(String password) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/account'),
+      headers: _headers,
+      body: jsonEncode({'password': password}),
+    );
+    if (response.statusCode == 200) {
+      await logout();
+      return;
+    }
+    final data = jsonDecode(response.body);
+    throw Exception(data['error'] ?? 'No se pudo eliminar tu cuenta.');
+  }
+
   Future<Map<String, dynamic>?> getTodayLog() async {
     try {
       final date = DateTime.now().toIso8601String().split('T')[0];
@@ -154,22 +222,24 @@ class ApiService {
     return null;
   }
 
+  /// A diferencia de la mayoría de los GET de este archivo, este SÍ lanza
+  /// en caso de fallo de red/servidor en vez de devolver []: el llamador
+  /// necesita distinguir "no hay progreso guardado todavía" (200 con
+  /// mensajes vacíos) de "no pudimos saberlo" (para no perder el brief de
+  /// un usuario que ya iba avanzado por un simple corte de conexión).
   Future<List<Map<String, String>>> getOnboardingProgress() async {
-    try {
-      final response = await http.get(Uri.parse('$baseUrl/onboarding/progress'), headers: _headers);
-      _reportIfUnauthorized(response);
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['messages'] != null) {
-          return List<Map<String, String>>.from(
-            (data['messages'] as List).map((e) => Map<String, String>.from(e))
-          );
-        }
+    final response = await http.get(Uri.parse('$baseUrl/onboarding/progress'), headers: _headers);
+    _reportIfUnauthorized(response);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['messages'] != null) {
+        return List<Map<String, String>>.from(
+          (data['messages'] as List).map((e) => Map<String, String>.from(e))
+        );
       }
-    } catch (e) {
-      print('Get onboarding progress error: $e');
+      return [];
     }
-    return [];
+    throw Exception(_friendlyError(response, 'No se pudo cargar tu progreso.'));
   }
 
   Future<void> saveOnboardingProgress(List<Map<String, String>> messages) async {
@@ -209,7 +279,7 @@ class ApiService {
     if (response.statusCode == 200) {
       return jsonDecode(response.body)['plan'];
     }
-    throw Exception('Failed to fetch daily plan: ${response.body}');
+    throw Exception(_friendlyError(response, 'No se pudo generar tu plan del día.'));
   }
 
   /// Guarda el estado completo del día (plan + tareas completadas + tareas
@@ -240,6 +310,6 @@ class ApiService {
     if (response.statusCode == 200) {
       return jsonDecode(response.body)['message'];
     }
-    throw Exception('Failed midday check');
+    throw Exception(_friendlyError(response, 'No se pudo hacer el chequeo de energía.'));
   }
 }

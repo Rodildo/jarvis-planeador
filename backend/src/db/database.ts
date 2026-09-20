@@ -251,3 +251,42 @@ export const getUserById = async (id: string): Promise<UserRecord | null> => {
         });
     });
 };
+
+export const updateUserName = async (id: string, firstName: string, lastName: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        const stmt = db.prepare(`UPDATE users SET first_name = ?, last_name = ? WHERE id = ?`);
+        stmt.run(firstName, lastName, id, (err: Error | null) => {
+            stmt.finalize();
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+};
+
+export const updateUserPassword = async (id: string, passwordHash: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        const stmt = db.prepare(`UPDATE users SET password_hash = ? WHERE id = ?`);
+        stmt.run(passwordHash, id, (err: Error | null) => {
+            stmt.finalize();
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+};
+
+// Borra todo lo asociado al usuario (blueprint, brief, historial diario y
+// la cuenta misma). No hay claves foráneas con cascade configurado, así
+// que se borra explícitamente de cada tabla, en orden.
+export const deleteUserAccount = async (id: string): Promise<void> => {
+    const run = (sql: string): Promise<void> => new Promise((resolve, reject) => {
+        db.run(sql, [id], (err: Error | null) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+
+    await run(`DELETE FROM blueprints WHERE user_id = ?`);
+    await run(`DELETE FROM onboarding_progress WHERE user_id = ?`);
+    await run(`DELETE FROM daily_logs WHERE user_id = ?`);
+    await run(`DELETE FROM users WHERE id = ?`);
+};

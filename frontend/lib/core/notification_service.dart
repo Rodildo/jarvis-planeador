@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -17,6 +18,11 @@ class NotificationService {
   static const int _morningNotificationId = 1;
   static const int _middayNotificationId = 2;
   static const int _nightNotificationId = 3;
+
+  static const String _morningHourKey = 'notif_morning_hour';
+  static const String _morningMinuteKey = 'notif_morning_minute';
+  static const String _nightHourKey = 'notif_night_hour';
+  static const String _nightMinuteKey = 'notif_night_minute';
 
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   GoRouter? _router;
@@ -81,25 +87,53 @@ class NotificationService {
     }
   }
 
-  Future<void> scheduleMorningReminder() => _safeSchedule('scheduleMorningReminder', () => _plugin.zonedSchedule(
-        id: _morningNotificationId,
-        title: 'Buenos días, jefe',
-        body: '¿Cómo está la batería hoy? Reporta tu energía del 1 al 5.',
-        scheduledDate: _nextInstanceOfLocalTime(8, 0),
-        notificationDetails: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'morning_check_channel',
-            'Chequeo matutino',
-            channelDescription: 'Recordatorio diario para reportar tu nivel de energía',
-            importance: Importance.high,
-            priority: Priority.high,
+  Future<TimeOfDay> getMorningTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    return TimeOfDay(hour: prefs.getInt(_morningHourKey) ?? 8, minute: prefs.getInt(_morningMinuteKey) ?? 0);
+  }
+
+  Future<TimeOfDay> getNightTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    return TimeOfDay(hour: prefs.getInt(_nightHourKey) ?? 21, minute: prefs.getInt(_nightMinuteKey) ?? 0);
+  }
+
+  /// Guarda la hora elegida y reagenda el recordatorio de inmediato.
+  Future<void> setMorningTime(TimeOfDay time) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_morningHourKey, time.hour);
+    await prefs.setInt(_morningMinuteKey, time.minute);
+    await scheduleMorningReminder();
+  }
+
+  Future<void> setNightTime(TimeOfDay time) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_nightHourKey, time.hour);
+    await prefs.setInt(_nightMinuteKey, time.minute);
+    await scheduleNightReminder();
+  }
+
+  Future<void> scheduleMorningReminder() => _safeSchedule('scheduleMorningReminder', () async {
+        final time = await getMorningTime();
+        await _plugin.zonedSchedule(
+          id: _morningNotificationId,
+          title: 'Buenos días, jefe',
+          body: '¿Cómo está la batería hoy? Reporta tu energía del 1 al 5.',
+          scheduledDate: _nextInstanceOfLocalTime(time.hour, time.minute),
+          notificationDetails: const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'morning_check_channel',
+              'Chequeo matutino',
+              channelDescription: 'Recordatorio diario para reportar tu nivel de energía',
+              importance: Importance.high,
+              priority: Priority.high,
+            ),
+            iOS: DarwinNotificationDetails(),
           ),
-          iOS: DarwinNotificationDetails(),
-        ),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        matchDateTimeComponents: DateTimeComponents.time,
-        payload: 'morning',
-      ));
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          matchDateTimeComponents: DateTimeComponents.time,
+          payload: 'morning',
+        );
+      });
 
   Future<void> scheduleMiddayCheck(Duration delay) => _safeSchedule('scheduleMiddayCheck', () => _plugin.zonedSchedule(
         id: _middayNotificationId,
@@ -121,25 +155,28 @@ class NotificationService {
       ));
 
   /// Tercer recordatorio del día: cierre nocturno, hora fija recurrente.
-  Future<void> scheduleNightReminder() => _safeSchedule('scheduleNightReminder', () => _plugin.zonedSchedule(
-        id: _nightNotificationId,
-        title: 'Cierra tu día',
-        body: 'Revisa tus tareas de la noche y márcalas antes de descansar.',
-        scheduledDate: _nextInstanceOfLocalTime(21, 0),
-        notificationDetails: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'night_check_channel',
-            'Cierre nocturno',
-            channelDescription: 'Recordatorio diario para revisar tus tareas de la noche',
-            importance: Importance.high,
-            priority: Priority.high,
+  Future<void> scheduleNightReminder() => _safeSchedule('scheduleNightReminder', () async {
+        final time = await getNightTime();
+        await _plugin.zonedSchedule(
+          id: _nightNotificationId,
+          title: 'Cierra tu día',
+          body: 'Revisa tus tareas de la noche y márcalas antes de descansar.',
+          scheduledDate: _nextInstanceOfLocalTime(time.hour, time.minute),
+          notificationDetails: const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'night_check_channel',
+              'Cierre nocturno',
+              channelDescription: 'Recordatorio diario para revisar tus tareas de la noche',
+              importance: Importance.high,
+              priority: Priority.high,
+            ),
+            iOS: DarwinNotificationDetails(),
           ),
-          iOS: DarwinNotificationDetails(),
-        ),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        matchDateTimeComponents: DateTimeComponents.time,
-        payload: 'night',
-      ));
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          matchDateTimeComponents: DateTimeComponents.time,
+          payload: 'night',
+        );
+      });
 
   Future<void> cancelMiddayCheck() => _safeSchedule('cancelMiddayCheck', () => _plugin.cancel(id: _middayNotificationId));
 
