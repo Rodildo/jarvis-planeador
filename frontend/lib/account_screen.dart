@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'providers/auth_provider.dart';
 import 'core/api_service.dart';
 import 'core/notification_service.dart';
+import 'widgets/jarvis_drawer.dart';
 
 class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key});
@@ -383,6 +384,7 @@ class _AccountScreenState extends State<AccountScreen> {
     final auth = context.watch<AuthProvider>();
 
     return Scaffold(
+      drawer: const JarvisDrawer(),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
