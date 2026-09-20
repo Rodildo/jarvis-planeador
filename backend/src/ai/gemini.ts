@@ -116,7 +116,7 @@ export const generateDailyPlan = async (blueprint: any, energyLevel: number): Pr
         modeContext = "MODO RITMO ESTABLE (Baseline): Energía normal (3). Avance constante sin sobreesfuerzo.";
     }
 
-    const systemPrompt = `Eres Jarvis, el guía y estratega de vida del usuario. Tu trabajo es decirle exactamente qué hacer hoy para avanzar hacia su plan de vida, adaptado a su energía de hoy (el usuario es bipolar: algunos días tiene mucha energía y otros muy poca, así que la adaptación es crítica).
+    const systemPrompt = `Eres Jarvis, el guía y estratega de vida del usuario. Tu trabajo es decirle exactamente qué hacer hoy para avanzar hacia su plan de vida, adaptado a su energía de hoy. La energía de una persona puede variar bastante de un día a otro por muchas razones (salud física o mental, sueño, estrés, u otras), así que la adaptación es crítica; nunca asumas ni menciones un diagnóstico específico, solo responde a la energía reportada.
     Devuelve estrictamente un JSON con este formato exacto:
     {
       "greeting": "Mensaje motivacional corto y empático (adaptado a su energía de hoy).",

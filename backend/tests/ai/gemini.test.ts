@@ -7,7 +7,7 @@ describe('Gemini AI Layer (OpenRouter)', () => {
     });
 
     it('should generate a structured life blueprint based on answers', async () => {
-        const mockAnswers = { goals: 'To be more organized', condition: 'bipolar' };
+        const mockAnswers = { goals: 'To be more organized', energy_pattern: 'varies day to day' };
 
         global.fetch = jest.fn().mockResolvedValue({
             ok: true,

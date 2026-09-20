@@ -48,7 +48,7 @@ const List<OnboardingQuestion> onboardingQuestions = [
   OnboardingQuestion('salud', _salud, '¿Cómo te alimentas normalmente?',
       type: OnboardingQuestionType.choice,
       options: ['Cuido bastante mi alimentación', 'Como lo que hay, sin pensarlo mucho', 'Sé que como mal y quisiera cambiarlo']),
-  OnboardingQuestion('salud', _salud, 'Ya que tu energía varía por tu bipolaridad, ¿qué señales notas cuando estás entrando en un momento de baja energía?'),
+  OnboardingQuestion('salud', _salud, '¿Qué señales notas en ti cuando estás entrando en un momento de baja energía o poca motivación? (si hay alguna condición o patrón de fondo que influya, también puedes mencionarlo aquí)'),
   OnboardingQuestion('salud', _salud, '¿Y cuáles son las señales de que estás en un momento de mucha energía o activación?'),
   OnboardingQuestion('salud', _salud, '¿Qué tanto sientes que cuidas tu estabilidad emocional día a día (terapia, medicación, rutinas)?',
       type: OnboardingQuestionType.scale, scaleLowLabel: 'Nada', scaleHighLabel: 'Mucho'),
@@ -75,7 +75,7 @@ const List<OnboardingQuestion> onboardingQuestions = [
   // Relaciones y familia
   OnboardingQuestion('relaciones', _relaciones, '¿Cómo describirías tu círculo cercano de apoyo: familia, pareja, amigos?'),
   OnboardingQuestion('relaciones', _relaciones, '¿Hay alguna relación en tu vida que te gustaría fortalecer o reparar?'),
-  OnboardingQuestion('relaciones', _relaciones, '¿Sientes que las personas cercanas a ti entienden lo que significa tu bipolaridad?',
+  OnboardingQuestion('relaciones', _relaciones, '¿Sientes que las personas cercanas a ti entienden cómo te afectan tus días de baja energía o ánimo?',
       type: OnboardingQuestionType.choice,
       options: ['Sí, bastante bien', 'Algunas sí, otras no', 'No, casi nadie lo entiende']),
   OnboardingQuestion('relaciones', _relaciones, '¿Cómo sueles comunicar cuando estás pasando por un día difícil emocionalmente?'),
@@ -117,7 +117,7 @@ const List<OnboardingQuestion> onboardingQuestions = [
       options: ['Sí, y lo pienso seguido', 'Sí, pero ya casi no lo pienso', 'No, la verdad no']),
   OnboardingQuestion('proposito', _proposito, '¿Qué valores son innegociables para ti en la forma en que vives?'),
   OnboardingQuestion('proposito', _proposito, '¿Qué significa para ti el éxito, más allá del dinero o el estatus?'),
-  OnboardingQuestion('proposito', _proposito, '¿Cómo te gustaría que tu bipolaridad sea parte de tu historia, y no un obstáculo en ella?'),
+  OnboardingQuestion('proposito', _proposito, '¿Hay algún reto personal (de salud, energía, o cualquier otro) que te gustaría que fuera parte de tu historia de superación, y no un obstáculo en ella?'),
   OnboardingQuestion('proposito', _proposito, 'Si pudieras darle un consejo a tu yo de hace 5 años, ¿cuál sería?'),
   OnboardingQuestion('proposito', _proposito, '¿Qué necesitas creer sobre ti mismo para perseguir la vida que realmente quieres?'),
 ];
