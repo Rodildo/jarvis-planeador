@@ -6,7 +6,7 @@
 /// versión instalada ya quedó obsoleta y hay que bloquear el uso pidiendo
 /// actualizar. Subir minBuildNumber en el backend sin subir este valor en
 /// una nueva build es lo que "fuerza" la actualización.
-const int kAppBuildNumber = 1;
+const int kAppBuildNumber = 2;
 
 /// Link estable de descarga: siempre resuelve al asset del release más
 /// reciente en GitHub (ver PROYECTO.md).
