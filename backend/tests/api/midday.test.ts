@@ -78,7 +78,8 @@ describe('API Routes - Midday Check', () => {
             { life_vision: 'Vision', areas: {}, daily_routine: 'Routine' },
             1,
             dailyState.plan,
-            'Jorge'
+            'Jorge',
+            undefined
         );
         expect(generateMidDayAdjustment).not.toHaveBeenCalled();
         expect(saveDailyActions).toHaveBeenCalledWith('user_123', '2026-09-20', {

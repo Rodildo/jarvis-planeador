@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/auth_provider.dart';
 import 'core/api_service.dart';
 import 'core/notification_service.dart';
+import 'core/i18n/app_language.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -49,6 +50,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _submit(AuthProvider auth) async {
+    final t = context.read<AppLanguage>().t;
     final email = _emailController.text.trim();
     final password = _passwordController.text;
     final firstName = _firstNameController.text.trim();
@@ -58,11 +60,11 @@ class _LoginScreenState extends State<LoginScreen> {
     if (email.isEmpty || password.isEmpty) return;
     if (_isRegisterMode && (firstName.isEmpty || lastName.isEmpty)) return;
     if (!_emailRegex.hasMatch(email)) {
-      setState(() => _localError = 'Ingresa un correo con formato válido.');
+      setState(() => _localError = t('login.invalidEmail'));
       return;
     }
     if (_isRegisterMode && !_acceptedLegal) {
-      setState(() => _localError = 'Debes aceptar la Política de Privacidad y los Términos de Uso para continuar.');
+      setState(() => _localError = t('login.mustAcceptLegal'));
       return;
     }
 
@@ -91,6 +93,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final t = context.watch<AppLanguage>().t;
 
     return Scaffold(
       body: Container(
@@ -138,7 +141,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          _isRegisterMode ? 'Crea tu cuenta' : 'Inicia sesión',
+                          _isRegisterMode ? t('login.createAccount') : t('login.signIn'),
                           textAlign: TextAlign.center,
                           style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
                         ),
@@ -166,19 +169,19 @@ class _LoginScreenState extends State<LoginScreen> {
                         if (_isRegisterMode) ...[
                           Row(
                             children: [
-                              Expanded(child: _buildTextField(_firstNameController, 'Nombre', false)),
+                              Expanded(child: _buildTextField(_firstNameController, t('login.firstName'), false)),
                               const SizedBox(width: 12),
-                              Expanded(child: _buildTextField(_lastNameController, 'Apellido', false)),
+                              Expanded(child: _buildTextField(_lastNameController, t('login.lastName'), false)),
                             ],
                           ),
                           const SizedBox(height: 14),
                         ],
-                        _buildTextField(_emailController, 'Correo', false),
+                        _buildTextField(_emailController, t('login.email'), false),
                         const SizedBox(height: 14),
-                        _buildTextField(_passwordController, 'Contraseña', true),
+                        _buildTextField(_passwordController, t('login.password'), true),
                         if (_isRegisterMode) ...[
                           const SizedBox(height: 14),
-                          _buildLegalConsentCheckbox(),
+                          _buildLegalConsentCheckbox(t),
                         ],
                         if (_localError != null || auth.errorMessage != null) ...[
                           const SizedBox(height: 14),
@@ -196,7 +199,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: auth.isLoading
                               ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF070B14)))
                               : Text(
-                                  _isRegisterMode ? 'Crear cuenta' : 'Entrar',
+                                  _isRegisterMode ? t('login.createAccountButton') : t('login.enter'),
                                   style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15),
                                 ),
                         ),
@@ -204,13 +207,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         TextButton(
                           onPressed: auth.isLoading ? null : () => setState(() => _isRegisterMode = !_isRegisterMode),
                           child: Text(
-                            _isRegisterMode ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate',
+                            _isRegisterMode ? t('login.alreadyHaveAccount') : t('login.noAccount'),
                             style: GoogleFonts.inter(color: Colors.white54, fontSize: 13),
                           ),
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          '© 2026 Kinetiqsystem. Todos los derechos reservados.',
+                          t('login.copyright'),
                           textAlign: TextAlign.center,
                           style: GoogleFonts.inter(color: Colors.white24, fontSize: 10),
                         ),
@@ -226,7 +229,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildLegalConsentCheckbox() {
+  Widget _buildLegalConsentCheckbox(String Function(String) t) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -249,9 +252,9 @@ class _LoginScreenState extends State<LoginScreen> {
               text: TextSpan(
                 style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
                 children: [
-                  const TextSpan(text: 'Acepto la '),
+                  TextSpan(text: t('login.acceptPrefix')),
                   TextSpan(
-                    text: 'Política de Privacidad y los Términos de Uso',
+                    text: t('login.legalLinkText'),
                     style: const TextStyle(color: Color(0xFF00E5FF), decoration: TextDecoration.underline),
                     recognizer: TapGestureRecognizer()..onTap = () => context.push('/legal'),
                   ),

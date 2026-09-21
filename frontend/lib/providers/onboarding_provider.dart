@@ -4,9 +4,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_service.dart';
 import '../core/notification_service.dart';
 import '../core/onboarding_questions.dart';
+import '../core/i18n/app_language.dart';
 
 class OnboardingProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
+  final AppLanguage _lang;
 
   static const String _localBackupKey = 'onboarding_local_backup';
 
@@ -28,7 +30,9 @@ class OnboardingProvider extends ChangeNotifier {
   int currentAreaIndex = 0;
   int currentQuestionNumber = 0;
 
-  OnboardingProvider() {
+  List<OnboardingQuestion> get questions => getOnboardingQuestions(_lang.code);
+
+  OnboardingProvider(this._lang) {
     _initOnboarding();
   }
 
@@ -103,22 +107,25 @@ class OnboardingProvider extends ChangeNotifier {
 
   /// Compara el progreso guardado contra el banco fijo de preguntas
   /// actual, pregunta por pregunta. Si alguna no coincide (venía de la IA
-  /// generándolas dinámicamente en una versión anterior, o el banco de
-  /// preguntas cambió), el progreso ya no es válido.
+  /// generándolas dinámicamente en una versión anterior, el banco de
+  /// preguntas cambió, o el idioma cambió a mitad de un brief), el
+  /// progreso ya no es válido.
   bool _isProgressCompatible(List<Map<String, String>> progress) {
+    final qs = questions;
     int qIndex = 0;
     for (final m in progress) {
       if (m['role'] != 'jarvis') continue;
-      if (qIndex >= onboardingQuestions.length) return false;
-      if (m['text'] != onboardingQuestions[qIndex].question) return false;
+      if (qIndex >= qs.length) return false;
+      if (m['text'] != qs[qIndex].question) return false;
       qIndex++;
     }
     return true;
   }
 
   void _syncAreaProgress() {
-    if (questionCount >= onboardingQuestions.length) return;
-    final q = onboardingQuestions[questionCount];
+    final qs = questions;
+    if (questionCount >= qs.length) return;
+    final q = qs[questionCount];
     currentAreaLabel = q.areaLabel;
     currentAreaIndex = questionCount ~/ questionsPerArea;
     currentQuestionNumber = (questionCount % questionsPerArea) + 1;
@@ -158,8 +165,9 @@ class OnboardingProvider extends ChangeNotifier {
   // Pregunta local: viene de un banco fijo de 50 preguntas, no de una
   // llamada a la IA, así que nunca puede fallar por red.
   void _fetchNextQuestion() {
-    if (questionCount >= onboardingQuestions.length) return;
-    final q = onboardingQuestions[questionCount];
+    final qs = questions;
+    if (questionCount >= qs.length) return;
+    final q = qs[questionCount];
     currentAreaLabel = q.areaLabel;
     currentAreaIndex = questionCount ~/ questionsPerArea;
     currentQuestionNumber = (questionCount % questionsPerArea) + 1;
@@ -193,7 +201,7 @@ class OnboardingProvider extends ChangeNotifier {
   /// Si el usuario no entiende o no quiere responder una pregunta, avanza
   /// igual que una respuesta normal pero con un texto neutral, para que la
   /// IA no construya conclusiones sobre una respuesta que no existió.
-  Future<bool> skipQuestion() => submitAnswer('(el usuario prefirió no responder esta pregunta)');
+  Future<bool> skipQuestion() => submitAnswer(_lang.t('onboarding.skippedAnswer'));
 
   Future<bool> submitAnswer(String answer) async {
     if (answer.trim().isEmpty) return false;
@@ -244,8 +252,8 @@ class OnboardingProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final success = await _api.submitAssessment(messages);
-      if (!success) throw Exception('Falló al guardar el blueprint');
+      final success = await _api.submitAssessment(messages, _lang.code);
+      if (!success) throw Exception(_lang.t('onboarding.blueprintSaveFailed'));
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('has_blueprint', true);
@@ -255,7 +263,7 @@ class OnboardingProvider extends ChangeNotifier {
 
       return true; // Navigates to Chat
     } catch (e) {
-      errorMessage = 'No se pudo generar tu Life Blueprint (${e.toString().replaceFirst('Exception: ', '')}). Puedes reintentar.';
+      errorMessage = _lang.tr('onboarding.finalizeError', {'error': e.toString().replaceFirst('Exception: ', '')});
       return false;
     } finally {
       isLoading = false;

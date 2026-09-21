@@ -41,7 +41,7 @@ describe('API Routes', () => {
         expect(response.body).toHaveProperty('success', true);
         expect(response.body.blueprint).toEqual(mockBlueprint);
 
-        expect(generateBlueprint).toHaveBeenCalledWith(mockAnswers, undefined);
+        expect(generateBlueprint).toHaveBeenCalledWith(mockAnswers, undefined, undefined);
         expect(saveBlueprint).toHaveBeenCalledWith('user_123', JSON.stringify(mockBlueprint));
     });
 

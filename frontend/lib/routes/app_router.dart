@@ -7,11 +7,33 @@ import '../blueprint_screen.dart';
 import '../history_screen.dart';
 import '../account_screen.dart';
 import '../legal_screen.dart';
+import '../language_screen.dart';
+import '../update_required_screen.dart';
 
 GoRouter getAppRouter(String initialLocation) {
   return GoRouter(
     initialLocation: initialLocation,
     routes: [
+    GoRoute(
+      path: '/language',
+      pageBuilder: (context, state) => CustomTransitionPage(
+        key: state.pageKey,
+        child: const LanguageScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
+    ),
+    GoRoute(
+      path: '/update-required',
+      pageBuilder: (context, state) => CustomTransitionPage(
+        key: state.pageKey,
+        child: const UpdateRequiredScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
+    ),
     GoRoute(
       path: '/login',
       pageBuilder: (context, state) => CustomTransitionPage(

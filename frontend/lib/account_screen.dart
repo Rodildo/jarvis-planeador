@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'providers/auth_provider.dart';
 import 'core/api_service.dart';
 import 'core/notification_service.dart';
+import 'core/i18n/app_language.dart';
 import 'widgets/jarvis_drawer.dart';
 
 class AccountScreen extends StatefulWidget {
@@ -50,7 +51,7 @@ class _AccountScreenState extends State<AccountScreen> {
     super.dispose();
   }
 
-  Future<void> _pickAvatar(AuthProvider auth) async {
+  Future<void> _pickAvatar(AuthProvider auth, AppLanguage lang) async {
     final picker = ImagePicker();
     XFile? picked;
     try {
@@ -63,7 +64,7 @@ class _AccountScreenState extends State<AccountScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _profileMessage = 'No se pudo abrir la galería.';
+        _profileMessage = lang.t('account.galleryError');
         _profileMessageIsError = true;
       });
       return;
@@ -77,21 +78,22 @@ class _AccountScreenState extends State<AccountScreen> {
     final success = await auth.uploadAvatar(dataUri);
     if (!mounted) return;
     setState(() {
-      _profileMessage = success ? 'Foto de perfil actualizada.' : auth.errorMessage;
+      _profileMessage = success ? lang.t('account.avatarUpdated') : auth.errorMessage;
       _profileMessageIsError = !success;
     });
   }
 
-  Future<void> _removeAvatar(AuthProvider auth) async {
+  Future<void> _removeAvatar(AuthProvider auth, AppLanguage lang) async {
     final success = await auth.removeAvatar();
     if (!mounted) return;
     setState(() {
-      _profileMessage = success ? 'Foto de perfil eliminada.' : auth.errorMessage;
+      _profileMessage = success ? lang.t('account.avatarRemoved') : auth.errorMessage;
       _profileMessageIsError = !success;
     });
   }
 
-  Future<void> _showAvatarOptions(AuthProvider auth) async {
+  Future<void> _showAvatarOptions(AuthProvider auth, AppLanguage lang) async {
+    final t = lang.t;
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: const Color(0xFF131B2F),
@@ -102,19 +104,19 @@ class _AccountScreenState extends State<AccountScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_library_outlined, color: Color(0xFF00E5FF)),
-              title: Text('Elegir de la galería', style: GoogleFonts.inter(color: Colors.white)),
+              title: Text(t('account.chooseFromGallery'), style: GoogleFonts.inter(color: Colors.white)),
               onTap: () {
                 Navigator.pop(sheetContext);
-                _pickAvatar(auth);
+                _pickAvatar(auth, lang);
               },
             ),
             if (ApiService.avatar != null)
               ListTile(
                 leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                title: Text('Quitar foto', style: GoogleFonts.inter(color: Colors.redAccent)),
+                title: Text(t('account.removePhoto'), style: GoogleFonts.inter(color: Colors.redAccent)),
                 onTap: () {
                   Navigator.pop(sheetContext);
-                  _removeAvatar(auth);
+                  _removeAvatar(auth, lang);
                 },
               ),
           ],
@@ -123,7 +125,7 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  Widget _buildAvatarSection(AuthProvider auth) {
+  Widget _buildAvatarSection(AuthProvider auth, AppLanguage lang) {
     final avatarUri = ApiService.avatar;
     ImageProvider? imageProvider;
     if (avatarUri != null) {
@@ -136,7 +138,7 @@ class _AccountScreenState extends State<AccountScreen> {
 
     return Center(
       child: GestureDetector(
-        onTap: auth.isLoading ? null : () => _showAvatarOptions(auth),
+        onTap: auth.isLoading ? null : () => _showAvatarOptions(auth, lang),
         child: Stack(
           children: [
             CircleAvatar(
@@ -164,12 +166,12 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  Future<void> _saveProfile(AuthProvider auth) async {
+  Future<void> _saveProfile(AuthProvider auth, AppLanguage lang) async {
     final firstName = _firstNameController.text.trim();
     final lastName = _lastNameController.text.trim();
     if (firstName.isEmpty || lastName.isEmpty) {
       setState(() {
-        _profileMessage = 'El nombre y el apellido no pueden estar vacíos.';
+        _profileMessage = lang.t('account.namesEmpty');
         _profileMessageIsError = true;
       });
       return;
@@ -177,7 +179,7 @@ class _AccountScreenState extends State<AccountScreen> {
     final success = await auth.updateProfile(firstName, lastName);
     if (!mounted) return;
     setState(() {
-      _profileMessage = success ? 'Perfil actualizado.' : auth.errorMessage;
+      _profileMessage = success ? lang.t('account.profileUpdated') : auth.errorMessage;
       _profileMessageIsError = !success;
     });
   }
@@ -198,7 +200,8 @@ class _AccountScreenState extends State<AccountScreen> {
     setState(() => _nightTime = picked);
   }
 
-  Future<void> _showChangePasswordDialog(AuthProvider auth) async {
+  Future<void> _showChangePasswordDialog(AuthProvider auth, AppLanguage lang) async {
+    final t = lang.t;
     final currentController = TextEditingController();
     final newController = TextEditingController();
     final confirmController = TextEditingController();
@@ -210,15 +213,15 @@ class _AccountScreenState extends State<AccountScreen> {
         builder: (dialogContext, setDialogState) => AlertDialog(
           backgroundColor: const Color(0xFF131B2F),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text('Cambiar contraseña', style: GoogleFonts.outfit(color: Colors.white)),
+          title: Text(t('account.changePasswordTitle'), style: GoogleFonts.outfit(color: Colors.white)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildDialogField(currentController, 'Contraseña actual', true),
+              _buildDialogField(currentController, t('account.currentPassword'), true),
               const SizedBox(height: 10),
-              _buildDialogField(newController, 'Nueva contraseña', true),
+              _buildDialogField(newController, t('account.newPassword'), true),
               const SizedBox(height: 10),
-              _buildDialogField(confirmController, 'Confirma la nueva contraseña', true),
+              _buildDialogField(confirmController, t('account.confirmNewPassword'), true),
               if (localError != null) ...[
                 const SizedBox(height: 10),
                 Text(localError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
@@ -228,18 +231,18 @@ class _AccountScreenState extends State<AccountScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: Text('Cancelar', style: GoogleFonts.inter(color: Colors.white54)),
+              child: Text(t('common.cancel'), style: GoogleFonts.inter(color: Colors.white54)),
             ),
             TextButton(
               onPressed: auth.isLoading
                   ? null
                   : () async {
                       if (newController.text != confirmController.text) {
-                        setDialogState(() => localError = 'Las contraseñas nuevas no coinciden.');
+                        setDialogState(() => localError = t('account.passwordsDontMatch'));
                         return;
                       }
                       if (newController.text.length < 8) {
-                        setDialogState(() => localError = 'La nueva contraseña debe tener al menos 8 caracteres.');
+                        setDialogState(() => localError = t('account.passwordTooShort'));
                         return;
                       }
                       final success = await auth.changePassword(currentController.text, newController.text);
@@ -247,7 +250,7 @@ class _AccountScreenState extends State<AccountScreen> {
                         if (dialogContext.mounted) Navigator.pop(dialogContext);
                         if (mounted) {
                           setState(() {
-                            _profileMessage = 'Contraseña actualizada.';
+                            _profileMessage = t('account.passwordUpdated');
                             _profileMessageIsError = false;
                           });
                         }
@@ -255,7 +258,7 @@ class _AccountScreenState extends State<AccountScreen> {
                         setDialogState(() => localError = auth.errorMessage);
                       }
                     },
-              child: Text('Cambiar', style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+              child: Text(t('account.change'), style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -263,7 +266,8 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  Future<void> _showDeleteAccountDialog(AuthProvider auth) async {
+  Future<void> _showDeleteAccountDialog(AuthProvider auth, AppLanguage lang) async {
+    final t = lang.t;
     final passwordController = TextEditingController();
     String? localError;
 
@@ -273,17 +277,17 @@ class _AccountScreenState extends State<AccountScreen> {
         builder: (dialogContext, setDialogState) => AlertDialog(
           backgroundColor: const Color(0xFF131B2F),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text('Eliminar tu cuenta', style: GoogleFonts.outfit(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+          title: Text(t('account.deleteAccountTitle'), style: GoogleFonts.outfit(color: Colors.redAccent, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Esto borra tu cuenta, tu Life Blueprint y todo tu historial de forma permanente. No se puede deshacer.',
+                t('account.deleteAccountBody'),
                 style: GoogleFonts.inter(color: Colors.white70, fontSize: 13, height: 1.4),
               ),
               const SizedBox(height: 16),
-              _buildDialogField(passwordController, 'Confirma tu contraseña', true),
+              _buildDialogField(passwordController, t('account.confirmPassword'), true),
               if (localError != null) ...[
                 const SizedBox(height: 10),
                 Text(localError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
@@ -293,7 +297,7 @@ class _AccountScreenState extends State<AccountScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: Text('Cancelar', style: GoogleFonts.inter(color: Colors.white54)),
+              child: Text(t('common.cancel'), style: GoogleFonts.inter(color: Colors.white54)),
             ),
             TextButton(
               onPressed: auth.isLoading
@@ -307,7 +311,7 @@ class _AccountScreenState extends State<AccountScreen> {
                         setDialogState(() => localError = auth.errorMessage);
                       }
                     },
-              child: Text('Eliminar definitivamente', style: GoogleFonts.inter(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+              child: Text(t('account.deletePermanently'), style: GoogleFonts.inter(color: Colors.redAccent, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -379,9 +383,36 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
+  Widget _buildLanguageOption(AppLanguage lang, String code, String flag, String label) {
+    final selected = lang.code == code;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => lang.setLanguage(code),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          margin: EdgeInsets.only(right: code == 'es' ? 10 : 0, left: code == 'en' ? 10 : 0),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFF00E5FF).withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.03),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: selected ? const Color(0xFF00E5FF) : Colors.white.withValues(alpha: 0.15)),
+          ),
+          child: Column(
+            children: [
+              Text(flag, style: const TextStyle(fontSize: 26)),
+              const SizedBox(height: 6),
+              Text(label, style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final lang = context.watch<AppLanguage>();
+    final t = lang.t;
 
     return Scaffold(
       drawer: const JarvisDrawer(),
@@ -389,7 +420,7 @@ class _AccountScreenState extends State<AccountScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: Text('Mi Cuenta', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(t('account.title'), style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
       body: Container(
         decoration: const BoxDecoration(
@@ -403,16 +434,16 @@ class _AccountScreenState extends State<AccountScreen> {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              _buildAvatarSection(auth),
+              _buildAvatarSection(auth, lang),
               const SizedBox(height: 28),
-              _buildSectionTitle('Perfil'),
+              _buildSectionTitle(t('account.sectionProfile')),
               _buildCard(
                 children: [
                   Row(
                     children: [
-                      Expanded(child: _buildDialogField(_firstNameController, 'Nombre', false)),
+                      Expanded(child: _buildDialogField(_firstNameController, t('login.firstName'), false)),
                       const SizedBox(width: 12),
-                      Expanded(child: _buildDialogField(_lastNameController, 'Apellido', false)),
+                      Expanded(child: _buildDialogField(_lastNameController, t('login.lastName'), false)),
                     ],
                   ),
                   if (_profileMessage != null) ...[
@@ -426,43 +457,54 @@ class _AccountScreenState extends State<AccountScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: auth.isLoading ? null : () => _saveProfile(auth),
+                      onPressed: auth.isLoading ? null : () => _saveProfile(auth, lang),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF00E5FF),
                         foregroundColor: const Color(0xFF070B14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: Text('Guardar', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                      child: Text(t('common.save'), style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
               ),
-              _buildSectionTitle('Notificaciones'),
+              _buildSectionTitle(t('account.sectionLanguage')),
+              _buildCard(
+                children: [
+                  Row(
+                    children: [
+                      _buildLanguageOption(lang, 'es', '🇪🇸', 'Español'),
+                      _buildLanguageOption(lang, 'en', '🇺🇸', 'English'),
+                    ],
+                  ),
+                ],
+              ),
+              _buildSectionTitle(t('account.sectionNotifications')),
               _buildCard(
                 children: _loadingTimes
                     ? [const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))]
                     : [
-                        _buildTimeRow('Recordatorio matutino', _morningTime, _pickMorningTime),
-                        _buildTimeRow('Recordatorio nocturno', _nightTime, _pickNightTime),
+                        _buildTimeRow(t('account.morningReminder'), _morningTime, _pickMorningTime),
+                        _buildTimeRow(t('account.nightReminder'), _nightTime, _pickNightTime),
                       ],
               ),
-              _buildSectionTitle('Seguridad'),
+              _buildSectionTitle(t('account.sectionSecurity')),
               _buildCard(
                 children: [
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
-                      onPressed: () => _showChangePasswordDialog(auth),
+                      onPressed: () => _showChangePasswordDialog(auth, lang),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: Color(0xFF00E5FF)),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: Text('Cambiar contraseña', style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+                      child: Text(t('account.changePasswordTitle'), style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
               ),
-              _buildSectionTitle('Legal'),
+              _buildSectionTitle(t('account.sectionLegal')),
               _buildCard(
                 children: [
                   SizedBox(
@@ -474,28 +516,28 @@ class _AccountScreenState extends State<AccountScreen> {
                         side: const BorderSide(color: Color(0xFF00E5FF)),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      label: Text('Privacidad y Términos', style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+                      label: Text(t('account.privacyAndTerms'), style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
               ),
-              _buildSectionTitle('Zona de peligro'),
+              _buildSectionTitle(t('account.sectionDanger')),
               _buildCard(
                 children: [
                   Text(
-                    'Eliminar tu cuenta borra tu Life Blueprint y todo tu historial de forma permanente.',
+                    t('account.dangerZoneBody'),
                     style: GoogleFonts.inter(color: Colors.white54, fontSize: 12, height: 1.4),
                   ),
                   const SizedBox(height: 14),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
-                      onPressed: () => _showDeleteAccountDialog(auth),
+                      onPressed: () => _showDeleteAccountDialog(auth, lang),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: Colors.redAccent),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: Text('Eliminar mi cuenta', style: GoogleFonts.inter(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                      child: Text(t('account.deleteMyAccount'), style: GoogleFonts.inter(color: Colors.redAccent, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -503,7 +545,7 @@ class _AccountScreenState extends State<AccountScreen> {
               const SizedBox(height: 12),
               Center(
                 child: Text(
-                  '© 2026 Kinetiqsystem. Todos los derechos reservados.',
+                  t('login.copyright'),
                   textAlign: TextAlign.center,
                   style: GoogleFonts.inter(color: Colors.white24, fontSize: 11),
                 ),

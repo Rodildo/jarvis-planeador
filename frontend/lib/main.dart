@@ -10,10 +10,15 @@ import 'providers/chat_provider.dart';
 import 'routes/app_router.dart';
 import 'core/api_service.dart';
 import 'core/notification_service.dart';
+import 'core/app_info.dart';
+import 'core/i18n/app_language.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ApiService.loadStoredToken();
+
+  final appLanguage = AppLanguage();
+  await appLanguage.load();
 
   final prefs = await SharedPreferences.getInstance();
   bool hasBlueprint = false;
@@ -29,9 +34,25 @@ void main() async {
     }
   }
 
-  final initialLocation = !ApiService.isLoggedIn
-      ? '/login'
-      : (hasBlueprint ? '/chat' : '/onboarding');
+  // Chequeo de versión: si el backend dice que esta build ya quedó
+  // obsoleta, se bloquea todo lo demás. Si la llamada falla (sin red),
+  // nunca se bloquea por eso — solo por una versión de verdad vieja.
+  bool forceUpdate = false;
+  try {
+    final versionInfo = await ApiService().getVersionInfo();
+    final minBuild = versionInfo?['minBuildNumber'];
+    if (minBuild is int && kAppBuildNumber < minBuild) forceUpdate = true;
+  } catch (e) {
+    debugPrint('Version check failed, continuing: $e');
+  }
+
+  final initialLocation = forceUpdate
+      ? '/update-required'
+      : !appLanguage.isSelected
+          ? '/language'
+          : !ApiService.isLoggedIn
+              ? '/login'
+              : (hasBlueprint ? '/chat' : '/onboarding');
   final router = getAppRouter(initialLocation);
 
   // Si el token queda inválido/vencido en cualquier llamada, volvemos a login.
@@ -54,9 +75,10 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider.value(value: appLanguage),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => OnboardingProvider()),
-        ChangeNotifierProvider(create: (_) => ChatProvider()),
+        ChangeNotifierProvider(create: (_) => OnboardingProvider(appLanguage)),
+        ChangeNotifierProvider(create: (_) => ChatProvider(appLanguage)),
       ],
       child: JarvisApp(router: router),
     ),

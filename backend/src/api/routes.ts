@@ -11,8 +11,17 @@ import { requireAuth, hashPassword, verifyPassword, signToken, isValidEmail, Aut
 
 export const apiRouter = Router();
 
+// minBuildNumber se sube a mano cada vez que se quiere forzar que todos
+// los usuarios actualicen a una versión nueva del APK (ej. tras un cambio
+// incompatible). Se compara contra kAppBuildNumber del cliente
+// (frontend/lib/core/app_info.dart, que a su vez debe ir sincronizado con
+// el "+N" de la versión en pubspec.yaml en cada release) — si el cliente
+// tiene un build menor, se bloquea con la pantalla de actualización
+// obligatoria. Ver docs/reference/06-decisions.md.
+const MIN_SUPPORTED_BUILD_NUMBER = 1;
+
 apiRouter.get('/version', (req, res) => {
-    res.json({ version: '5.1.0-user-profile' });
+    res.json({ version: '5.2.0-i18n', minBuildNumber: MIN_SUPPORTED_BUILD_NUMBER });
 });
 
 apiRouter.get('/life-areas', (req, res) => {
@@ -186,6 +195,29 @@ apiRouter.post('/auth/change-password', async (req: AuthedRequest, res) => {
     }
 });
 
+// Verifica la contraseña actual sin ningún efecto secundario (a diferencia
+// de /auth/change-password o /account, que si la validan pero además
+// cambian algo). Lo usa el cliente para pedir confirmación con contraseña
+// antes de acciones destructivas/importantes que no son ni cambiar la
+// clave ni borrar la cuenta — ej. regenerar el Life Blueprint.
+apiRouter.post('/auth/verify-password', loginLimiter, async (req: AuthedRequest, res) => {
+    try {
+        const { password } = req.body;
+        if (!password) return res.status(400).json({ error: 'password is required' });
+
+        const user = await getUserById(req.userId!);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const valid = await verifyPassword(password, user.password_hash);
+        if (!valid) return res.status(401).json({ error: 'Contraseña incorrecta' });
+
+        res.status(200).json({ success: true });
+    } catch (error: any) {
+        console.error('Verify Password Error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
+
 apiRouter.delete('/account', async (req: AuthedRequest, res) => {
     try {
         const { password } = req.body;
@@ -244,14 +276,14 @@ apiRouter.post('/onboarding/progress', async (req: AuthedRequest, res) => {
 
 apiRouter.post('/assessment', aiCostLimiter, async (req: AuthedRequest, res) => {
     try {
-        const { answers } = req.body;
+        const { answers, language } = req.body;
         if (!answers) return res.status(400).json({ error: 'answers is required' });
 
         const userId = req.userId!;
         // Si ya existía un blueprint (re-brief mensual), se lo pasamos como
         // contexto para que el plan evolucione en vez de partir de cero.
         const existingBlueprint = await getBlueprint(userId);
-        const blueprint = await generateBlueprint(answers, existingBlueprint ? JSON.parse(existingBlueprint) : undefined);
+        const blueprint = await generateBlueprint(answers, existingBlueprint ? JSON.parse(existingBlueprint) : undefined, language);
         await saveBlueprint(userId, JSON.stringify(blueprint));
         await clearOnboardingProgress(userId);
         res.status(200).json({ success: true, blueprint });
@@ -288,7 +320,7 @@ apiRouter.get('/history', async (req: AuthedRequest, res) => {
 
 apiRouter.post('/daily-plan', aiCostLimiter, async (req: AuthedRequest, res) => {
     try {
-        const { date, energyLevel } = req.body;
+        const { date, energyLevel, language } = req.body;
         if (!date || energyLevel === undefined) return res.status(400).json({ error: 'date and energyLevel are required' });
 
         const userId = req.userId!;
@@ -298,7 +330,7 @@ apiRouter.post('/daily-plan', aiCostLimiter, async (req: AuthedRequest, res) => 
         if (!blueprintData) return res.status(404).json({ error: 'Blueprint not found for user' });
 
         const user = await getUserById(userId);
-        const plan = await generateDailyPlan(JSON.parse(blueprintData), energyLevel, user?.first_name);
+        const plan = await generateDailyPlan(JSON.parse(blueprintData), energyLevel, user?.first_name, language);
         res.status(200).json({ success: true, plan });
     } catch (error: any) {
         console.error('Daily Plan Error:', error);
@@ -321,7 +353,7 @@ apiRouter.post('/daily-actions', async (req: AuthedRequest, res) => {
 
 apiRouter.post('/midday', aiCostLimiter, async (req: AuthedRequest, res) => {
     try {
-        const { date, energyLevel } = req.body;
+        const { date, energyLevel, language } = req.body;
         if (!date || energyLevel === undefined) return res.status(400).json({ error: 'Missing fields' });
 
         const userId = req.userId!;
@@ -344,7 +376,7 @@ apiRouter.post('/midday', aiCostLimiter, async (req: AuthedRequest, res) => {
         // verdad: se regeneran midday/night en vez de solo dar un mensaje.
         if (morningEnergy != null && energyModeChanged(morningEnergy, energyLevel)) {
             const user = await getUserById(userId);
-            const replan = await generateMidDayReplan(blueprint, energyLevel, currentPlan, user?.first_name);
+            const replan = await generateMidDayReplan(blueprint, energyLevel, currentPlan, user?.first_name, language);
 
             const updatedPlan = { ...currentPlan, midday: replan.midday, night: replan.night };
 
@@ -364,7 +396,7 @@ apiRouter.post('/midday', aiCostLimiter, async (req: AuthedRequest, res) => {
 
             res.status(200).json({ success: true, message: replan.message, plan: updatedPlan, completed });
         } else {
-            const message = await generateMidDayAdjustment(blueprint, morningEnergy, energyLevel, currentPlan);
+            const message = await generateMidDayAdjustment(blueprint, morningEnergy, energyLevel, currentPlan, language);
             res.status(200).json({ success: true, message });
         }
     } catch (error: any) {

@@ -101,6 +101,24 @@ class ApiService {
     }
   }
 
+  /// Público, sin auth. Se consulta al arrancar la app para saber si esta
+  /// versión instalada ya quedó obsoleta (ver kAppBuildNumber en
+  /// core/app_info.dart) y hay que bloquear el uso pidiendo actualizar.
+  /// Si la llamada falla (sin red, servidor caído), devuelve null — nunca
+  /// debe bloquear al usuario por un problema de conexión, solo por una
+  /// versión de verdad desactualizada.
+  Future<Map<String, dynamic>?> getVersionInfo() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/version'));
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+    } catch (e) {
+      print('Get version info error: $e');
+    }
+    return null;
+  }
+
   Future<void> register(String email, String password, String firstName, String lastName) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/register'),
@@ -218,6 +236,22 @@ class ApiService {
     throw Exception(data['error'] ?? 'No se pudo cambiar tu contraseña.');
   }
 
+  /// Verifica la contraseña actual sin ningún efecto secundario (a
+  /// diferencia de changePassword/deleteAccount, que sí cambian algo). Se
+  /// usa para pedir confirmación con contraseña antes de acciones
+  /// importantes, como regenerar el Life Blueprint.
+  Future<void> verifyPassword(String password) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/verify-password'),
+      headers: _headers,
+      body: jsonEncode({'password': password}),
+    );
+    _reportIfUnauthorized(response);
+    if (response.statusCode == 200) return;
+    final data = jsonDecode(response.body);
+    throw Exception(data['error'] ?? 'No se pudo verificar tu contraseña.');
+  }
+
   /// Elimina la cuenta (y todos sus datos) en el backend, y limpia la
   /// sesión local si tiene éxito.
   Future<void> deleteAccount(String password) async {
@@ -262,18 +296,24 @@ class ApiService {
   /// sesión, se devuelve al instante sin esperar otro viaje de red. Se
   /// llama en segundo plano apenas se entra a /chat (ver ChatProvider)
   /// para que, cuando el usuario abra Historial, ya esté listo.
+  /// Reintenta un par de veces ante fallas de red antes de rendirse (mismo
+  /// motivo que getTodayLog/getLifeBlueprint) — un [] devuelto por un 200
+  /// real sí es un historial legítimamente vacío, eso no se reintenta.
   Future<List<Map<String, dynamic>>> getHistory({int days = 30, bool forceRefresh = false}) async {
     if (!forceRefresh && _cachedHistory != null) return _cachedHistory!;
-    try {
-      final response = await http.get(Uri.parse('$baseUrl/history?days=$days'), headers: _headers);
-      _reportIfUnauthorized(response);
-      if (response.statusCode == 200) {
-        final logs = (jsonDecode(response.body)['logs'] as List).cast<Map<String, dynamic>>();
-        _cachedHistory = logs;
-        return logs;
+    for (int attempt = 1; attempt <= 3; attempt++) {
+      try {
+        final response = await http.get(Uri.parse('$baseUrl/history?days=$days'), headers: _headers);
+        _reportIfUnauthorized(response);
+        if (response.statusCode == 200) {
+          final logs = (jsonDecode(response.body)['logs'] as List).cast<Map<String, dynamic>>();
+          _cachedHistory = logs;
+          return logs;
+        }
+      } catch (e) {
+        print('Get history error (intento $attempt): $e');
       }
-    } catch (e) {
-      print('Get history error: $e');
+      if (attempt < 3) await Future.delayed(const Duration(milliseconds: 800));
     }
     return _cachedHistory ?? [];
   }
@@ -283,19 +323,28 @@ class ApiService {
   /// memoria: justo después de terminar el brief (submitAssessment) ya
   /// queda precargado, así que la primera vez que se abre "Mi Plan
   /// Maestro" no hace falta esperar otro viaje de red.
+  /// Reintenta un par de veces antes de rendirse (mismo motivo que
+  /// getTodayLog: la primera llamada tras un arranque en frío puede
+  /// fallar por la red sin que eso signifique que de verdad no hay
+  /// blueprint). Un 404 real (el usuario nunca hizo el brief) no se
+  /// reintenta — no tiene sentido, esa respuesta ya es definitiva.
   Future<Map<String, dynamic>?> getLifeBlueprint({bool forceRefresh = false}) async {
     if (!forceRefresh && _cachedBlueprint != null) return _cachedBlueprint;
-    try {
-      final response = await http.get(Uri.parse('$baseUrl/blueprint'), headers: _headers);
-      _reportIfUnauthorized(response);
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final result = {'blueprint': data['blueprint'], 'updatedAt': data['updatedAt']};
-        _cachedBlueprint = result;
-        return result;
+    for (int attempt = 1; attempt <= 3; attempt++) {
+      try {
+        final response = await http.get(Uri.parse('$baseUrl/blueprint'), headers: _headers);
+        _reportIfUnauthorized(response);
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final result = {'blueprint': data['blueprint'], 'updatedAt': data['updatedAt']};
+          _cachedBlueprint = result;
+          return result;
+        }
+        if (response.statusCode == 404) return null;
+      } catch (e) {
+        print('Get blueprint error (intento $attempt): $e');
       }
-    } catch (e) {
-      print('Get blueprint error: $e');
+      if (attempt < 3) await Future.delayed(const Duration(milliseconds: 800));
     }
     return null;
   }
@@ -333,11 +382,11 @@ class ApiService {
     }
   }
 
-  Future<bool> submitAssessment(List<Map<String, String>> messages) async {
+  Future<bool> submitAssessment(List<Map<String, String>> messages, String language) async {
     final response = await http.post(
       Uri.parse('$baseUrl/assessment'),
       headers: _headers,
-      body: jsonEncode({'answers': jsonEncode(messages)}),
+      body: jsonEncode({'answers': jsonEncode(messages), 'language': language}),
     );
     _reportIfUnauthorized(response);
     if (response.statusCode != 200) return false;
@@ -355,13 +404,14 @@ class ApiService {
   }
 
   /// Devuelve { greeting, morning: [{task, reason}], midday: [...], night: [...] }.
-  Future<Map<String, dynamic>> getDailyPlan(int energyLevel) async {
+  Future<Map<String, dynamic>> getDailyPlan(int energyLevel, String language) async {
     final response = await http.post(
       Uri.parse('$baseUrl/daily-plan'),
       headers: _headers,
       body: jsonEncode({
         'date': DateTime.now().toIso8601String().split('T')[0],
-        'energyLevel': energyLevel
+        'energyLevel': energyLevel,
+        'language': language,
       }),
     );
     _reportIfUnauthorized(response);
@@ -390,13 +440,14 @@ class ApiService {
   /// presentes cuando el backend decidió que el cambio de energía ameritaba
   /// regenerar las tareas restantes del día (mediodía/noche); si no, vienen
   /// null y el plan actual no cambia.
-  Future<Map<String, dynamic>> triggerMiddayCheck(int energyLevel) async {
+  Future<Map<String, dynamic>> triggerMiddayCheck(int energyLevel, String language) async {
     final response = await http.post(
       Uri.parse('$baseUrl/midday'),
       headers: _headers,
       body: jsonEncode({
         'date': DateTime.now().toIso8601String().split('T')[0],
-        'energyLevel': energyLevel
+        'energyLevel': energyLevel,
+        'language': language,
       }),
     );
     _reportIfUnauthorized(response);

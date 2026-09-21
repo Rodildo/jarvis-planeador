@@ -3,16 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_service.dart';
 import '../core/notification_service.dart';
+import '../core/i18n/app_language.dart';
 
 class ChatProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
+  final AppLanguage _lang;
 
   static const String _localBackupKey = 'chat_today_backup';
   static const String _energyPromptGateKey = 'energy_prompt_gate';
   static const String _lastEnergyCheckKey = 'last_energy_check_at';
 
   bool isLoading = false;
-  String jarvisMessage = "¡Buenos días! Soy Jarvis. ¿Del 1 al 5, cómo está tu nivel de energía hoy?";
+  late String jarvisMessage;
 
   // plan = { greeting, morning: [{task, reason}], midday: [...], night: [...] }
   Map<String, dynamic>? plan;
@@ -41,7 +43,8 @@ class ChatProvider extends ChangeNotifier {
     return DateTime.now().difference(last) >= const Duration(hours: 6);
   }
 
-  ChatProvider() {
+  ChatProvider(this._lang) {
+    jarvisMessage = _lang.t('chat.initialGreeting');
     // Se registra antes de consultar si la app se abrió desde una
     // notificación, para no perder el tap si fue un cold start.
     NotificationService.instance.onMiddayTap = showMidday;
@@ -91,7 +94,7 @@ class ChatProvider extends ChangeNotifier {
     final morningEnergy = log?['energy_morning'];
     final energyLevel = morningEnergy is int ? morningEnergy : int.tryParse('$morningEnergy');
     if (energyLevel != null && energyLevel >= 1 && energyLevel <= 5) {
-      jarvisMessage = 'Ya tengo tu energía de hoy (nivel $energyLevel) — termino de armar tu plan...';
+      jarvisMessage = _lang.tr('chat.resumingPlan', {'level': '$energyLevel'});
       notifyListeners();
       await _generatePlan(energyLevel);
       return;
@@ -119,7 +122,7 @@ class ChatProvider extends ChangeNotifier {
     // deja un mensaje para reintentar más tarde en vez de arriesgar
     // generar (y gastar tokens en) un plan de más.
     if (!await _canShowEnergyPrompt()) {
-      jarvisMessage = 'No pude confirmar tu plan de hoy por una falla de conexión. Espera un momento y vuelve a intentar.';
+      jarvisMessage = _lang.t('chat.gateBlockedMessage');
       energyPromptGateBlocked = true;
       isLoading = false;
       notifyListeners();
@@ -193,7 +196,7 @@ class ChatProvider extends ChangeNotifier {
       (state['manualTasks'] as List? ?? []).map((t) => Map<String, dynamic>.from(t)),
     );
     dayStarted = true;
-    jarvisMessage = restoredPlan['greeting']?.toString() ?? 'Aquí está tu plan de hoy.';
+    jarvisMessage = restoredPlan['greeting']?.toString() ?? _lang.t('chat.defaultPlanReady');
     return true;
   }
 
@@ -251,7 +254,7 @@ class ChatProvider extends ChangeNotifier {
   Future<void> requestDailyPlan(String textInput) async {
     final energyLevel = _parseEnergyLevel(textInput);
     if (energyLevel == null) {
-      jarvisMessage = "Por favor ingresa un nivel válido del 1 al 5.";
+      jarvisMessage = _lang.t('chat.invalidEnergyLevel');
       notifyListeners();
       return;
     }
@@ -262,21 +265,21 @@ class ChatProvider extends ChangeNotifier {
     isLoading = true;
     // Limpia cualquier mensaje de error de un intento anterior, para que
     // no se vea el error viejo superpuesto con el spinner del intento nuevo.
-    jarvisMessage = 'Cargando tu plan del día, por favor espera...';
+    jarvisMessage = _lang.t('chat.loadingPlan');
     notifyListeners();
 
     try {
-      final result = await _api.getDailyPlan(energyLevel);
+      final result = await _api.getDailyPlan(energyLevel, _lang.code);
       plan = result;
       completed = {};
       manualTasks = [];
       dayStarted = true;
-      jarvisMessage = result['greeting']?.toString() ?? 'Aquí está tu plan de hoy.';
+      jarvisMessage = result['greeting']?.toString() ?? _lang.t('chat.defaultPlanReady');
       await _persistState();
       await _recordEnergyCheckNow();
       await NotificationService.instance.scheduleMiddayCheck(const Duration(hours: 6));
     } catch (e) {
-      jarvisMessage = "${e.toString().replaceFirst('Exception: ', '')} Revisa tu conexión e intenta de nuevo.";
+      jarvisMessage = '${e.toString().replaceFirst('Exception: ', '')} ${_lang.t('chat.connectionErrorSuffix')}';
     } finally {
       isLoading = false;
       notifyListeners();
@@ -317,7 +320,7 @@ class ChatProvider extends ChangeNotifier {
   void showMidday() {
     NotificationService.instance.cancelMiddayCheck();
     showMiddayInput = true;
-    jarvisMessage = "¿Cómo está tu nivel de energía en este momento (1-5)?";
+    jarvisMessage = _lang.t('chat.middayPrompt');
     notifyListeners();
   }
 
@@ -326,7 +329,7 @@ class ChatProvider extends ChangeNotifier {
   /// esta pantalla: los botones de energía se quedaban ahí para siempre.
   void dismissMiddayCheck() {
     showMiddayInput = false;
-    jarvisMessage = plan?['greeting']?.toString() ?? 'Aquí está tu plan de hoy.';
+    jarvisMessage = plan?['greeting']?.toString() ?? _lang.t('chat.defaultPlanReady');
     notifyListeners();
   }
 
@@ -337,11 +340,11 @@ class ChatProvider extends ChangeNotifier {
     isLoading = true;
     // Limpia cualquier mensaje de error de un intento anterior, para que
     // no se vea el error viejo superpuesto con el spinner del intento nuevo.
-    jarvisMessage = 'Cargando tu chequeo de energía, por favor espera...';
+    jarvisMessage = _lang.t('chat.loadingMiddayCheck');
     notifyListeners();
 
     try {
-      final result = await _api.triggerMiddayCheck(energyLevel);
+      final result = await _api.triggerMiddayCheck(energyLevel, _lang.code);
       jarvisMessage = result['message']?.toString() ?? '';
       await _recordEnergyCheckNow();
 
@@ -357,7 +360,7 @@ class ChatProvider extends ChangeNotifier {
 
       showMiddayInput = false;
     } catch (e) {
-      jarvisMessage = "${e.toString().replaceFirst('Exception: ', '')} Revisa tu conexión e intenta de nuevo.";
+      jarvisMessage = '${e.toString().replaceFirst('Exception: ', '')} ${_lang.t('chat.connectionErrorSuffix')}';
     } finally {
       isLoading = false;
       notifyListeners();

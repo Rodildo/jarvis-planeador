@@ -109,7 +109,15 @@ const callOpenRouterAndParseJson = async (
     throw lastError;
 };
 
-export const generateBlueprint = async (answers: any, previousBlueprint?: any): Promise<any> => {
+// El usuario elige el idioma de la app una sola vez (ver LanguageScreen en
+// el frontend) y ese código ('es'/'en') se manda en cada llamada que
+// genera contenido con IA, para que el texto que ve (saludo, tareas,
+// mensajes) salga en el mismo idioma que el resto de la app — no solo la
+// interfaz estática, también lo que genera el modelo.
+const languageDirective = (language?: string): string =>
+    language === 'en' ? 'Respond only in English, in every text field of your JSON output.' : 'Responde solo en español, en cada campo de texto de tu salida JSON.';
+
+export const generateBlueprint = async (answers: any, previousBlueprint?: any, language?: string): Promise<any> => {
     const areaKeys = LIFE_AREAS.map(a => `"${a.key}"`).join(', ');
     const systemPrompt = `Actúa como un experto planificador de vida y psicólogo. El usuario respondió una entrevista de ${TOTAL_ONBOARDING_QUESTIONS} preguntas organizada en 5 áreas de vida: ${LIFE_AREAS.map(a => a.label).join(', ')}.
     Devuelve estrictamente un JSON válido con este formato exacto:
@@ -120,7 +128,7 @@ export const generateBlueprint = async (answers: any, previousBlueprint?: any): 
         },
         "daily_routine": "Descripción de cómo debería verse un día ideal para esta persona, en 2-3 frases"
     }
-    Las claves dentro de "areas" deben ser exactamente estas: ${areaKeys}. Cada área debe tener entre 2 y 4 metas concretas y accionables basadas en las respuestas del usuario.`;
+    Las claves dentro de "areas" deben ser exactamente estas: ${areaKeys}. Cada área debe tener entre 2 y 4 metas concretas y accionables basadas en las respuestas del usuario. ${languageDirective(language)}`;
 
     const updateNote = previousBlueprint
         ? `\nEste es un plan de vida EXISTENTE que el usuario está actualizando en su re-brief mensual. Blueprint anterior: ${JSON.stringify(previousBlueprint)}. Evoluciona y actualiza las metas en vez de ignorar lo anterior: conserva lo que sigue vigente y ajusta o reemplaza lo que cambió según las nuevas respuestas.`
@@ -157,7 +165,7 @@ const modeDescription = (mode: EnergyMode): string => {
     }
 };
 
-export const generateDailyPlan = async (blueprint: any, energyLevel: number, userName?: string): Promise<any> => {
+export const generateDailyPlan = async (blueprint: any, energyLevel: number, userName?: string, language?: string): Promise<any> => {
     const modeContext = modeDescription(energyMode(energyLevel));
 
     const nameNote = userName ? `Se llama ${userName}; dirígete a él/ella por su nombre en el saludo, de forma natural (no en cada oración).` : '';
@@ -175,7 +183,8 @@ export const generateDailyPlan = async (blueprint: any, energyLevel: number, use
     - "midday": tareas para el transcurso del día, las que más avanzan sus metas activas.
     - "night": cierre del día (reflexión breve, descanso, preparación para mañana).
     - Cada lista debe tener entre 1 y 4 tareas según el nivel de energía (menos y más simples si la energía es baja).
-    - Todas las tareas deben conectar con al menos una meta del blueprint, nunca genéricas o vacías.`;
+    - Todas las tareas deben conectar con al menos una meta del blueprint, nunca genéricas o vacías.
+    ${languageDirective(language)}`;
 
     const userPrompt = `Life Blueprint del usuario: ${JSON.stringify(blueprint)}
     HOY: el usuario reporta un nivel de energía matutino de ${energyLevel}/5. Contexto: ${modeContext}
@@ -184,9 +193,9 @@ export const generateDailyPlan = async (blueprint: any, energyLevel: number, use
     return callOpenRouterAndParseJson(systemPrompt, userPrompt, 2000, 'daily plan');
 };
 
-export const generateMidDayAdjustment = async (blueprint: any, morningEnergy: number, middayEnergy: number, dailyPlan: any): Promise<string> => {
+export const generateMidDayAdjustment = async (blueprint: any, morningEnergy: number, middayEnergy: number, dailyPlan: any, language?: string): Promise<string> => {
     const systemPrompt = `Eres Jarvis. Dame un mensaje corto, empático y adaptativo para la tarde.
-    Devuelve SOLO el texto del mensaje directamente, como si se lo dijeras en el chat.`;
+    Devuelve SOLO el texto del mensaje directamente, como si se lo dijeras en el chat. ${languageDirective(language)}`;
 
     const userPrompt = `Esta mañana el usuario tenía energía ${morningEnergy}/5 y su plan del día era: ${JSON.stringify(dailyPlan)}.
     Han pasado varias horas. Su energía AHORA es ${middayEnergy}/5.
@@ -202,7 +211,7 @@ export const generateMidDayAdjustment = async (blueprint: any, morningEnergy: nu
 // de ánimo se regeneran las tareas que faltan (midday/night — lo de la
 // mañana ya pasó, no se toca).
 export const generateMidDayReplan = async (
-    blueprint: any, middayEnergy: number, currentPlan: any, userName?: string
+    blueprint: any, middayEnergy: number, currentPlan: any, userName?: string, language?: string
 ): Promise<{ message: string; midday: any[]; night: any[] }> => {
     const modeContext = modeDescription(energyMode(middayEnergy));
     const nameNote = userName ? `Se llama ${userName}; dirígete a él/ella por su nombre de forma natural.` : '';
@@ -217,7 +226,8 @@ export const generateMidDayReplan = async (
     Reglas:
     - Cada lista debe tener entre 1 y 4 tareas según el nuevo nivel de energía (menos y más simples si bajó, pueden ser más ambiciosas si subió).
     - Todas las tareas deben conectar con al menos una meta del blueprint, nunca genéricas o vacías.
-    - Si la energía bajó mucho, prioriza descanso y lo mínimo indispensable, sin culpa.`;
+    - Si la energía bajó mucho, prioriza descanso y lo mínimo indispensable, sin culpa.
+    ${languageDirective(language)}`;
 
     const userPrompt = `Life Blueprint del usuario: ${JSON.stringify(blueprint)}
     Plan original de hoy (su "midday"/"night" ya no están vigentes): ${JSON.stringify(currentPlan)}

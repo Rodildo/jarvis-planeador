@@ -44,7 +44,7 @@ describe('API Routes - Daily Plan', () => {
 
         expect(saveMorningLog).toHaveBeenCalledWith('user_123', '2026-09-17', 5);
         expect(getBlueprint).toHaveBeenCalledWith('user_123');
-        expect(generateDailyPlan).toHaveBeenCalledWith(JSON.parse(mockBlueprint), 5, 'Jorge');
+        expect(generateDailyPlan).toHaveBeenCalledWith(JSON.parse(mockBlueprint), 5, 'Jorge', undefined);
     });
 
     it('POST /api/daily-plan should return 404 if blueprint is missing', async () => {

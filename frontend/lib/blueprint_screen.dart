@@ -1,26 +1,27 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'core/api_service.dart';
+import 'core/i18n/app_language.dart';
+import 'providers/auth_provider.dart';
 import 'providers/onboarding_provider.dart';
 import 'widgets/jarvis_drawer.dart';
 
 class _AreaInfo {
-  final String label;
+  final String labelKey;
   final IconData icon;
-  const _AreaInfo(this.label, this.icon);
+  const _AreaInfo(this.labelKey, this.icon);
 }
 
 // Debe reflejar exactamente las claves de LIFE_AREAS en backend/src/ai/gemini.ts
 const Map<String, _AreaInfo> _areaInfo = {
-  'salud': _AreaInfo('Salud física y mental', Icons.favorite_border),
-  'carrera_finanzas': _AreaInfo('Carrera y finanzas', Icons.work_outline),
-  'relaciones': _AreaInfo('Relaciones y familia', Icons.people_outline),
-  'crecimiento': _AreaInfo('Crecimiento personal y hábitos', Icons.self_improvement),
-  'proposito': _AreaInfo('Propósito y visión de vida', Icons.explore_outlined),
+  'salud': _AreaInfo('blueprint.area.salud', Icons.favorite_border),
+  'carrera_finanzas': _AreaInfo('blueprint.area.carrera_finanzas', Icons.work_outline),
+  'relaciones': _AreaInfo('blueprint.area.relaciones', Icons.people_outline),
+  'crecimiento': _AreaInfo('blueprint.area.crecimiento', Icons.self_improvement),
+  'proposito': _AreaInfo('blueprint.area.proposito', Icons.explore_outlined),
 };
 
 class BlueprintScreen extends StatefulWidget {
@@ -35,7 +36,6 @@ class _BlueprintScreenState extends State<BlueprintScreen> {
   bool _isLoading = true;
   Map<String, dynamic>? _blueprint;
   DateTime? _updatedAt;
-  String? _error;
 
   @override
   void initState() {
@@ -43,73 +43,132 @@ class _BlueprintScreenState extends State<BlueprintScreen> {
     _loadBlueprint();
   }
 
+  // getLifeBlueprint ya reintenta solo ante fallas de red (ver
+  // api_service.dart). Si de verdad no hay blueprint, o si las 3
+  // reintentos fallan igual, esta pantalla nunca muestra un mensaje de
+  // error/vacío (pedido explícito del usuario) — se queda mostrando el
+  // spinner de carga en vez de eso.
   Future<void> _loadBlueprint() async {
-    try {
-      final data = await _api.getLifeBlueprint();
-      if (mounted) {
-        setState(() {
-          _blueprint = data?['blueprint'];
-          final rawUpdatedAt = data?['updatedAt'];
-          _updatedAt = rawUpdatedAt != null ? DateTime.tryParse('${rawUpdatedAt}Z') : null;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'No se pudo cargar tu plan. Revisa tu conexión e intenta de nuevo.';
-          _isLoading = false;
-        });
-      }
-    }
+    final data = await _api.getLifeBlueprint();
+    if (!mounted || data?['blueprint'] == null) return;
+    setState(() {
+      _blueprint = data!['blueprint'];
+      final rawUpdatedAt = data['updatedAt'];
+      _updatedAt = rawUpdatedAt != null ? DateTime.tryParse('${rawUpdatedAt}Z') : null;
+      _isLoading = false;
+    });
   }
 
-  Future<void> _startRebrief() async {
-    await context.read<OnboardingProvider>().startRebrief();
-    if (mounted) context.go('/onboarding');
+  Future<void> _confirmAndStartRebrief() async {
+    final t = context.read<AppLanguage>().t;
+    final passwordController = TextEditingController();
+    String? localError;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF131B2F),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(t('blueprint.confirmTitle'), style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(t('blueprint.confirmBody'), style: GoogleFonts.inter(color: Colors.white70, fontSize: 13, height: 1.4)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: t('blueprint.confirmPasswordHint'),
+                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2))),
+                ),
+              ),
+              if (localError != null) ...[
+                const SizedBox(height: 10),
+                Text(localError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(t('common.cancel'), style: GoogleFonts.inter(color: Colors.white54)),
+            ),
+            Consumer<AuthProvider>(
+              builder: (context, auth, _) => TextButton(
+                onPressed: auth.isLoading
+                    ? null
+                    : () async {
+                        final ok = await auth.verifyPassword(passwordController.text);
+                        if (ok) {
+                          if (dialogContext.mounted) Navigator.pop(dialogContext);
+                          await context.read<OnboardingProvider>().startRebrief();
+                          if (mounted) context.go('/onboarding');
+                        } else {
+                          setDialogState(() => localError = auth.errorMessage);
+                        }
+                      },
+                child: Text(t('blueprint.confirmContinue'), style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final t = context.watch<AppLanguage>().t;
     return Scaffold(
       drawer: const JarvisDrawer(),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: Text('Mi Plan Maestro', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(t('blueprint.title'), style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
-          : _error != null
-              ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
-              : _blueprint == null
-                  ? const Center(child: Text('Todavía no tienes un Life Blueprint.', style: TextStyle(color: Colors.white54)))
-                  : _buildBlueprintContent(),
+      body: (_isLoading || _blueprint == null)
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(color: Color(0xFF00E5FF)),
+                  const SizedBox(height: 16),
+                  Text(t('common.loading'), style: GoogleFonts.inter(color: Colors.white54, fontSize: 13)),
+                ],
+              ),
+            )
+          : _buildBlueprintContent(t),
     );
   }
 
-  Widget _buildBlueprintContent() {
+  Widget _buildBlueprintContent(String Function(String) t) {
     final lifeVision = _blueprint!['life_vision']?.toString() ?? '';
     final areas = (_blueprint!['areas'] as Map?)?.cast<String, dynamic>() ?? {};
-    final routine = _blueprint!['daily_routine']?.toString() ?? 'Sin rutina especificada';
+    final routine = _blueprint!['daily_routine']?.toString() ?? t('blueprint.noRoutine');
 
     final daysSinceUpdate = _updatedAt != null ? DateTime.now().difference(_updatedAt!).inDays : null;
     final suggestRebrief = daysSinceUpdate != null && daysSinceUpdate >= 30;
+    final lang = context.watch<AppLanguage>();
 
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
         if (lifeVision.isNotEmpty) ...[
-          _buildVisionCard(lifeVision),
+          _buildVisionCard(lifeVision, t),
           const SizedBox(height: 30),
         ],
         for (final entry in _areaInfo.entries)
           if (areas[entry.key] != null) ...[
-            _buildAreaSection(entry.value, areas[entry.key] as Map<String, dynamic>),
+            _buildAreaSection(entry.value, areas[entry.key] as Map<String, dynamic>, t),
             const SizedBox(height: 24),
           ],
-        _buildSectionHeader('Rutina Diaria Sugerida'),
+        _buildSectionHeader(t('blueprint.dailyRoutineHeader')),
         const SizedBox(height: 15),
         _buildRoutineCard(routine),
         const SizedBox(height: 30),
@@ -117,14 +176,14 @@ class _BlueprintScreenState extends State<BlueprintScreen> {
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Text(
-              'Han pasado $daysSinceUpdate días desde tu último brief. Vale la pena actualizarlo.',
+              lang.tr('blueprint.rebriefSuggestion', {'days': '$daysSinceUpdate'}),
               style: GoogleFonts.inter(color: const Color(0xFFFFD700), fontSize: 13),
             ),
           ),
         OutlinedButton.icon(
-          onPressed: _startRebrief,
+          onPressed: _confirmAndStartRebrief,
           icon: const Icon(Icons.refresh, color: Color(0xFF00E5FF)),
-          label: Text('Actualizar mi Plan de Vida', style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.w600)),
+          label: Text(t('blueprint.updateButton'), style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.w600)),
           style: OutlinedButton.styleFrom(
             side: const BorderSide(color: Color(0xFF00E5FF)),
             minimumSize: const Size(double.infinity, 50),
@@ -135,7 +194,7 @@ class _BlueprintScreenState extends State<BlueprintScreen> {
     );
   }
 
-  Widget _buildVisionCard(String vision) {
+  Widget _buildVisionCard(String vision, String Function(String) t) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -146,7 +205,7 @@ class _BlueprintScreenState extends State<BlueprintScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('TU VISIÓN DE VIDA', style: GoogleFonts.outfit(color: const Color(0xFF00E5FF), fontWeight: FontWeight.w600, letterSpacing: 1.5, fontSize: 12)),
+          Text(t('blueprint.visionLabel'), style: GoogleFonts.outfit(color: const Color(0xFF00E5FF), fontWeight: FontWeight.w600, letterSpacing: 1.5, fontSize: 12)),
           const SizedBox(height: 10),
           Text(vision, style: GoogleFonts.inter(fontSize: 16, height: 1.5, color: Colors.white)),
         ],
@@ -165,7 +224,7 @@ class _BlueprintScreenState extends State<BlueprintScreen> {
     );
   }
 
-  Widget _buildAreaSection(_AreaInfo info, Map<String, dynamic> area) {
+  Widget _buildAreaSection(_AreaInfo info, Map<String, dynamic> area, String Function(String) t) {
     final summary = area['summary']?.toString();
     final goals = (area['goals'] as List?)?.cast<dynamic>() ?? [];
 
@@ -177,7 +236,7 @@ class _BlueprintScreenState extends State<BlueprintScreen> {
             Icon(info.icon, color: const Color(0xFF00E5FF), size: 20),
             const SizedBox(width: 10),
             Expanded(
-              child: Text(info.label, style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+              child: Text(t(info.labelKey), style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
             ),
           ],
         ),

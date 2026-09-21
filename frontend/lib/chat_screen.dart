@@ -5,18 +5,19 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'providers/chat_provider.dart';
 import 'widgets/jarvis_drawer.dart';
+import 'core/i18n/app_language.dart';
 
 class _BlockSpec {
   final String key;
-  final String label;
+  final String labelKey;
   final Color color;
-  const _BlockSpec(this.key, this.label, this.color);
+  const _BlockSpec(this.key, this.labelKey, this.color);
 }
 
 const List<_BlockSpec> _blocks = [
-  _BlockSpec('morning', 'AL LEVANTARTE', Color(0xFF00E5FF)),
-  _BlockSpec('midday', 'DURANTE EL DÍA', Color(0xFFFFD700)),
-  _BlockSpec('night', 'AL FINAL DEL DÍA', Color(0xFFFF007F)),
+  _BlockSpec('morning', 'chat.block.morning', Color(0xFF00E5FF)),
+  _BlockSpec('midday', 'chat.block.midday', Color(0xFFFFD700)),
+  _BlockSpec('night', 'chat.block.night', Color(0xFFFF007F)),
 ];
 
 class ChatScreen extends StatefulWidget {
@@ -62,19 +63,20 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _showAddTaskDialog(BuildContext context, String block, ChatProvider provider) async {
+    final t = context.read<AppLanguage>().t;
     final controller = TextEditingController();
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xFF131B2F),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Agregar tarea', style: GoogleFonts.outfit(color: Colors.white)),
+        title: Text(t('chat.addTaskTitle'), style: GoogleFonts.outfit(color: Colors.white)),
         content: TextField(
           controller: controller,
           autofocus: true,
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
-            hintText: 'Escribe tu tarea...',
+            hintText: t('chat.addTaskHint'),
             hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
           ),
           onSubmitted: (value) {
@@ -85,14 +87,14 @@ class _ChatScreenState extends State<ChatScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: Text('Cancelar', style: GoogleFonts.inter(color: Colors.white54)),
+            child: Text(t('common.cancel'), style: GoogleFonts.inter(color: Colors.white54)),
           ),
           TextButton(
             onPressed: () {
               provider.addManualTask(block, controller.text);
               Navigator.pop(dialogContext);
             },
-            child: Text('Agregar', style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+            child: Text(t('chat.addTaskConfirm'), style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -139,7 +141,7 @@ class _ChatScreenState extends State<ChatScreen> {
     ).animate().fadeIn(duration: 200.ms);
   }
 
-  Widget _buildBlockSection(_BlockSpec block, ChatProvider provider) {
+  Widget _buildBlockSection(_BlockSpec block, ChatProvider provider, String Function(String) t) {
     final aiTasks = (provider.plan?[block.key] as List?) ?? [];
     final manualForBlock = provider.manualTasks.where((t) => t['block'] == block.key).toList();
 
@@ -151,10 +153,25 @@ class _ChatScreenState extends State<ChatScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(block.label, style: GoogleFonts.outfit(color: block.color, fontWeight: FontWeight.w600, letterSpacing: 1.5)),
+              Text(t(block.labelKey), style: GoogleFonts.outfit(color: block.color, fontWeight: FontWeight.w600, letterSpacing: 1.5)),
               GestureDetector(
                 onTap: () => _showAddTaskDialog(context, block.key, provider),
-                child: Icon(Icons.add_circle_outline, color: block.color, size: 20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: block.color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: block.color.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add, color: block.color, size: 18),
+                      const SizedBox(width: 4),
+                      Text(t('chat.addTaskButton'), style: GoogleFonts.inter(color: block.color, fontWeight: FontWeight.w600, fontSize: 13)),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
@@ -178,7 +195,7 @@ class _ChatScreenState extends State<ChatScreen> {
           if (aiTasks.isEmpty && manualForBlock.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text('Sin tareas para este bloque todavía.', style: GoogleFonts.inter(color: Colors.white38, fontSize: 13)),
+              child: Text(t('chat.noTasksYet'), style: GoogleFonts.inter(color: Colors.white38, fontSize: 13)),
             ),
         ],
       ),
@@ -188,6 +205,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ChatProvider>();
+    final t = context.watch<AppLanguage>().t;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -277,7 +295,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     children: [
-                      for (final block in _blocks) _buildBlockSection(block, provider),
+                      for (final block in _blocks) _buildBlockSection(block, provider, t),
                       const SizedBox(height: 20),
                     ],
                   ),
@@ -301,7 +319,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       elevation: 10,
                       shadowColor: const Color(0xFFFF007F).withValues(alpha: 0.5),
                     ),
-                    child: Text('Chequeo de energía ahora', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
+                    child: Text(t('chat.middayCheckButton'), style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
                   ).animate().fadeIn().moveY(begin: 10, end: 0),
                 ),
 
@@ -321,7 +339,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       elevation: 0,
                     ),
-                    child: Text('Reintentar', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
+                    child: Text(t('common.retry'), style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
                   ).animate().fadeIn().moveY(begin: 10, end: 0),
                 ),
 
@@ -351,7 +369,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                 child: GestureDetector(
                                   onTap: provider.isLoading ? null : provider.dismissMiddayCheck,
                                   child: Text(
-                                    'Cancelar',
+                                    t('common.cancel'),
                                     style: GoogleFonts.inter(color: Colors.white54, fontSize: 13),
                                   ),
                                 ),

@@ -31,6 +31,13 @@ class NotificationService {
   /// energía cuando el usuario toca la notificación de mitad de día.
   VoidCallback? onMiddayTap;
 
+  /// NotificationService es un singleton fuera del árbol de providers, así
+  /// que no puede leer AppLanguage por context. AppLanguage.setLanguage
+  /// actualiza este campo cada vez que cambia el idioma (incluida la
+  /// carga inicial en main.dart), y los textos de las notificaciones se
+  /// arman a partir de él.
+  String languageCode = 'es';
+
   Future<void> init(GoRouter router) async {
     _router = router;
 
@@ -112,22 +119,28 @@ class NotificationService {
     await scheduleNightReminder();
   }
 
+  bool get _isEnglish => languageCode == 'en';
+
   Future<void> scheduleMorningReminder() => _safeSchedule('scheduleMorningReminder', () async {
         final time = await getMorningTime();
         await _plugin.zonedSchedule(
           id: _morningNotificationId,
-          title: 'Buenos días, jefe',
-          body: '¿Cómo está la batería hoy? Reporta tu energía del 1 al 5.',
+          title: _isEnglish ? 'Good morning, boss' : 'Buenos días, jefe',
+          body: _isEnglish
+              ? "How's the battery today? Report your energy from 1 to 5."
+              : '¿Cómo está la batería hoy? Reporta tu energía del 1 al 5.',
           scheduledDate: _nextInstanceOfLocalTime(time.hour, time.minute),
-          notificationDetails: const NotificationDetails(
+          notificationDetails: NotificationDetails(
             android: AndroidNotificationDetails(
               'morning_check_channel',
-              'Chequeo matutino',
-              channelDescription: 'Recordatorio diario para reportar tu nivel de energía',
+              _isEnglish ? 'Morning check-in' : 'Chequeo matutino',
+              channelDescription: _isEnglish
+                  ? 'Daily reminder to report your energy level'
+                  : 'Recordatorio diario para reportar tu nivel de energía',
               importance: Importance.high,
               priority: Priority.high,
             ),
-            iOS: DarwinNotificationDetails(),
+            iOS: const DarwinNotificationDetails(),
           ),
           androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
           matchDateTimeComponents: DateTimeComponents.time,
@@ -137,18 +150,18 @@ class NotificationService {
 
   Future<void> scheduleMiddayCheck(Duration delay) => _safeSchedule('scheduleMiddayCheck', () => _plugin.zonedSchedule(
         id: _middayNotificationId,
-        title: 'Chequeo de mitad de día',
-        body: 'Han pasado 6 horas. ¿Cómo está tu energía ahora?',
+        title: _isEnglish ? 'Midday check-in' : 'Chequeo de mitad de día',
+        body: _isEnglish ? "6 hours have passed. How's your energy now?" : 'Han pasado 6 horas. ¿Cómo está tu energía ahora?',
         scheduledDate: tz.TZDateTime.now(tz.local).add(delay),
-        notificationDetails: const NotificationDetails(
+        notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             'midday_check_channel',
-            'Chequeo de 6 horas',
-            channelDescription: 'Seguimiento de energía a mitad del día',
+            _isEnglish ? '6-hour check-in' : 'Chequeo de 6 horas',
+            channelDescription: _isEnglish ? 'Midday energy follow-up' : 'Seguimiento de energía a mitad del día',
             importance: Importance.high,
             priority: Priority.high,
           ),
-          iOS: DarwinNotificationDetails(),
+          iOS: const DarwinNotificationDetails(),
         ),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         payload: 'midday',
@@ -159,18 +172,22 @@ class NotificationService {
         final time = await getNightTime();
         await _plugin.zonedSchedule(
           id: _nightNotificationId,
-          title: 'Cierra tu día',
-          body: 'Revisa tus tareas de la noche y márcalas antes de descansar.',
+          title: _isEnglish ? 'Close out your day' : 'Cierra tu día',
+          body: _isEnglish
+              ? 'Review your night tasks and check them off before resting.'
+              : 'Revisa tus tareas de la noche y márcalas antes de descansar.',
           scheduledDate: _nextInstanceOfLocalTime(time.hour, time.minute),
-          notificationDetails: const NotificationDetails(
+          notificationDetails: NotificationDetails(
             android: AndroidNotificationDetails(
               'night_check_channel',
-              'Cierre nocturno',
-              channelDescription: 'Recordatorio diario para revisar tus tareas de la noche',
+              _isEnglish ? 'Night wrap-up' : 'Cierre nocturno',
+              channelDescription: _isEnglish
+                  ? 'Daily reminder to review your night tasks'
+                  : 'Recordatorio diario para revisar tus tareas de la noche',
               importance: Importance.high,
               priority: Priority.high,
             ),
-            iOS: DarwinNotificationDetails(),
+            iOS: const DarwinNotificationDetails(),
           ),
           androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
           matchDateTimeComponents: DateTimeComponents.time,

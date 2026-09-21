@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'providers/onboarding_provider.dart';
 import 'core/onboarding_questions.dart';
+import 'core/i18n/app_language.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -29,6 +30,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void _maybeShowIntroDialog() {
     if (!mounted) return;
     final provider = context.read<OnboardingProvider>();
+    final t = context.read<AppLanguage>().t;
     if (provider.questionCount != 0) return;
 
     showDialog<void>(
@@ -41,18 +43,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           children: [
             const Icon(Icons.info_outline, color: Color(0xFF00E5FF)),
             const SizedBox(width: 10),
-            Text('Antes de empezar', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
+            Text(t('onboarding.introTitle'), style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
           ],
         ),
         content: Text(
-          'Responder este test con la mayor sinceridad posible garantiza que Jarvis pueda definir tu proyecto de vida y hacia dónde vas enfocado en los próximos años, de la forma más eficaz posible.\n\n'
-          'Si no entiendes una pregunta, simplemente responde "no sé" o usa el botón de "Saltar pregunta".',
+          t('onboarding.introBody'),
           style: GoogleFonts.inter(color: Colors.white70, height: 1.5, fontSize: 14),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: Text('Entendido, empezar', style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+            child: Text(t('onboarding.introConfirm'), style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -87,13 +88,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<void> _editAnswer(OnboardingProvider provider, int index, String question, String currentAnswer) async {
+    final t = context.read<AppLanguage>().t;
     final controller = TextEditingController(text: currentAnswer);
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xFF131B2F),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Editar respuesta', style: GoogleFonts.outfit(color: Colors.white)),
+        title: Text(t('onboarding.editAnswerTitle'), style: GoogleFonts.outfit(color: Colors.white)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -117,14 +119,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: Text('Cancelar', style: GoogleFonts.inter(color: Colors.white54)),
+            child: Text(t('common.cancel'), style: GoogleFonts.inter(color: Colors.white54)),
           ),
           TextButton(
             onPressed: () {
               provider.updateAnswer(index, controller.text);
               Navigator.pop(dialogContext);
             },
-            child: Text('Guardar', style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
+            child: Text(t('common.save'), style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -159,19 +161,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  Widget _buildAnswerArea(OnboardingProvider provider) {
-    if (provider.questionCount >= onboardingQuestions.length) {
+  Widget _buildAnswerArea(OnboardingProvider provider, String Function(String) t) {
+    final questions = provider.questions;
+    if (provider.questionCount >= questions.length) {
       return const SizedBox.shrink();
     }
 
-    final currentQuestion = onboardingQuestions[provider.questionCount];
+    final currentQuestion = questions[provider.questionCount];
     switch (currentQuestion.type) {
       case OnboardingQuestionType.scale:
         return _buildScaleInput(provider, currentQuestion);
       case OnboardingQuestionType.choice:
         return _buildChoiceInput(provider, currentQuestion);
       case OnboardingQuestionType.text:
-        return _buildTextInput(provider);
+        return _buildTextInput(provider, t);
     }
   }
 
@@ -245,7 +248,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  Widget _buildTextInput(OnboardingProvider provider) {
+  Widget _buildTextInput(OnboardingProvider provider, String Function(String) t) {
     // Bottom Input Area (Glassmorphic)
     return ClipRRect(
       child: BackdropFilter(
@@ -263,7 +266,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   controller: _controller,
                   style: GoogleFonts.inter(color: Colors.white),
                   decoration: InputDecoration(
-                      hintText: 'Escribe tu respuesta...',
+                      hintText: t('onboarding.answerHint'),
                       hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
                     filled: true,
                     fillColor: Colors.white.withValues(alpha: 0.05),
@@ -333,7 +336,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  Widget _buildReviewBody(OnboardingProvider provider) {
+  Widget _buildReviewBody(OnboardingProvider provider, String Function(String) t) {
     final pairs = provider.reviewPairs;
     return Column(
       children: [
@@ -342,15 +345,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSmallActionButton(Icons.arrow_back_ios_new, 'Editar la última pregunta', () => _goBack(provider)),
+              _buildSmallActionButton(Icons.arrow_back_ios_new, t('onboarding.editLastQuestion'), () => _goBack(provider)),
               const SizedBox(height: 10),
               Text(
-                'Revisa tus respuestas',
+                t('onboarding.reviewTitle'),
                 style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
               ),
               const SizedBox(height: 4),
               Text(
-                'Toca el lápiz para corregir cualquier respuesta antes de generar tu Life Blueprint.',
+                t('onboarding.reviewSubtitle'),
                 style: GoogleFonts.inter(color: Colors.white54, fontSize: 12, height: 1.4),
               ),
             ],
@@ -380,14 +383,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
             child: provider.isLoading
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF070B14)))
-                : Text('Confirmar y generar mi Blueprint', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15)),
+                : Text(t('onboarding.confirmAndGenerate'), style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15)),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildChatBody(OnboardingProvider provider) {
+  Widget _buildChatBody(OnboardingProvider provider, String Function(String) t) {
     return Column(
             children: [
               if (provider.currentAreaLabel != null)
@@ -399,11 +402,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       Row(
                         children: [
                           if (provider.canGoBack) ...[
-                            _buildSmallActionButton(Icons.arrow_back_ios_new, 'Atrás', () => _goBack(provider)),
+                            _buildSmallActionButton(Icons.arrow_back_ios_new, t('onboarding.back'), () => _goBack(provider)),
                             const SizedBox(width: 16),
                           ],
                           if (provider.questionCount < provider.maxQuestions && !provider.isLoading)
-                            _buildSmallActionButton(Icons.skip_next, 'Saltar pregunta', () => _skip(provider)),
+                            _buildSmallActionButton(Icons.skip_next, t('onboarding.skipQuestion'), () => _skip(provider)),
                         ],
                       ),
                       const SizedBox(height: 10),
@@ -411,7 +414,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Área ${provider.currentAreaIndex + 1}/5 · ${provider.currentAreaLabel}',
+                            t('onboarding.areaProgress')
+                                .replaceAll('{area}', '${provider.currentAreaIndex + 1}')
+                                .replaceAll('{label}', provider.currentAreaLabel ?? ''),
                             style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
                           ),
                           Text(
@@ -456,10 +461,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                provider.messages[index]['text']!, 
+                                provider.messages[index]['text']!,
                                 style: GoogleFonts.inter(
-                                  color: isUser ? const Color(0xFF00E5FF) : Colors.white, 
-                                  fontSize: 15, 
+                                  color: isUser ? const Color(0xFF00E5FF) : Colors.white,
+                                  fontSize: 15,
                                   height: 1.5
                                 )
                               ),
@@ -471,20 +476,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   },
                 ),
               ),
-              
+
               if (provider.isLoading)
                 const Padding(
-                  padding: EdgeInsets.all(20.0), 
+                  padding: EdgeInsets.all(20.0),
                   child: CircularProgressIndicator(color: Color(0xFF00E5FF), strokeWidth: 2)
                 ).animate().fadeIn(),
-              
+
               if (provider.errorMessage != null)
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: Text(provider.errorMessage!, style: const TextStyle(color: Colors.redAccent)),
                 ),
 
-              _buildAnswerArea(provider),
+              _buildAnswerArea(provider, t),
             ],
     );
   }
@@ -492,6 +497,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<OnboardingProvider>();
+    final t = context.watch<AppLanguage>().t;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -510,7 +516,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
         ),
         child: SafeArea(
-          child: provider.reviewMode ? _buildReviewBody(provider) : _buildChatBody(provider),
+          child: provider.reviewMode ? _buildReviewBody(provider, t) : _buildChatBody(provider, t),
         ),
       ),
     );

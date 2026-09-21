@@ -37,7 +37,7 @@ Distribución real por área (no es uniforme a propósito — las áreas más "n
 | Propósito | 1 | 1 | 8 |
 | **Total** | **7** | **11** | **32** |
 
-El texto exacto de cada pregunta vive únicamente en el código fuente (`onboardingQuestions`) — este documento no lo duplica para no arriesgar que quede desincronizado; ese archivo es la fuente de verdad.
+El texto exacto de cada pregunta vive únicamente en el código fuente — este documento no lo duplica para no arriesgar que quede desincronizado; ese archivo es la fuente de verdad. Desde que la app es bilingüe (ver [06-decisions.md](06-decisions.md)), existen **dos** bancos completos (`getOnboardingQuestions('es'|'en')`), mismo orden y mismo tipo/opciones por índice en los dos idiomas.
 
 **Ninguna pregunta asume una condición de salud específica.** Antes había preguntas que mencionaban "tu bipolaridad" directamente (la app nació pensada para un solo usuario bipolar); se generalizaron para ser abiertas y aplicables a cualquier persona — ver [06-decisions.md](06-decisions.md).
 

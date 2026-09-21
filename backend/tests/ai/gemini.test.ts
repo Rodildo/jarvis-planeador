@@ -1,4 +1,4 @@
-import { generateBlueprint, generateMidDayReplan, energyModeChanged } from '../../src/ai/gemini';
+import { generateBlueprint, generateDailyPlan, generateMidDayReplan, energyModeChanged } from '../../src/ai/gemini';
 
 describe('Gemini AI Layer (OpenRouter)', () => {
     beforeEach(() => {
@@ -109,5 +109,38 @@ describe('generateMidDayReplan', () => {
 
         expect(fetchMock).toHaveBeenCalledTimes(2);
         expect(result.midday[0].task).toBe('Descansa');
+    });
+});
+
+describe('language directive', () => {
+    beforeEach(() => {
+        jest.restoreAllMocks();
+        process.env.OPENROUTER_API_KEY = 'mocked_test_key';
+    });
+
+    it('instructs the model to answer in English when language is "en"', async () => {
+        const fetchMock = jest.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ choices: [{ message: { content: '{"greeting": "hi", "morning": [], "midday": [], "night": []}' } }] })
+        });
+        global.fetch = fetchMock as unknown as typeof fetch;
+
+        await generateDailyPlan({ areas: {} }, 3, 'Jorge', 'en');
+
+        const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+        expect(requestBody.messages[0].content).toContain('Respond only in English');
+    });
+
+    it('defaults to Spanish when no language is given', async () => {
+        const fetchMock = jest.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ choices: [{ message: { content: '{"greeting": "hi", "morning": [], "midday": [], "night": []}' } }] })
+        });
+        global.fetch = fetchMock as unknown as typeof fetch;
+
+        await generateDailyPlan({ areas: {} }, 3, 'Jorge');
+
+        const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+        expect(requestBody.messages[0].content).toContain('Responde solo en español');
     });
 });

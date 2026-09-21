@@ -116,6 +116,23 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> verifyPassword(String password) async {
+    isLoading = true;
+    errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _api.verifyPassword(password);
+      return true;
+    } catch (e) {
+      errorMessage = e.toString().replaceFirst('Exception: ', '');
+      return false;
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<bool> deleteAccount(String password) async {
     isLoading = true;
     errorMessage = null;

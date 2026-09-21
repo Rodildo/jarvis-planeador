@@ -61,6 +61,15 @@ No hay pipeline de CI/CD ni distribución por tienda. El flujo actual es 100% ma
 
 `frontend/lib/core/api_service.dart` apunta al dominio de EasyPanel por defecto (`baseUrl`), pero acepta override en tiempo de compilación vía `--dart-define=JARVIS_API_URL=...` si alguna vez se necesita apuntar a un backend local durante desarrollo.
 
+### Forzar actualización (versión obsoleta)
+
+Ver [06-decisions.md](06-decisions.md) para el diseño completo. Para forzar que todos los usuarios actualicen a una build nueva:
+1. Subir `MIN_SUPPORTED_BUILD_NUMBER` en `backend/src/api/routes.ts` (endpoint `GET /version`) al build number de la build mínima aceptable.
+2. Desplegar el backend como siempre (push + "Deploy" en EasyPanel).
+3. Cualquier cliente con `kAppBuildNumber` (`frontend/lib/core/app_info.dart`) menor a ese valor queda bloqueado en `/update-required` hasta que instale la build nueva.
+
+**`kAppBuildNumber` debe subirse a mano junto con el `+N` de `version:` en `pubspec.yaml` en cada release** — no hay nada que los mantenga sincronizados automáticamente, es responsabilidad de quien compila.
+
 ## Regla de trabajo acordada con el usuario
 
 Cuando se modifica algo en `backend/`, el flujo esperado es: verificar (`tsc --noEmit` + `jest`), hacer commit y **push automáticamente sin que el usuario tenga que pedirlo cada vez**, y recordarle que tiene que ir a EasyPanel a darle "Deploy". Si el cambio es solo en `frontend/`, no aplica ningún push obligatorio ni recordatorio de deploy — el usuario recompila el APK cuando quiere probarlo.

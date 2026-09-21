@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'core/api_service.dart';
+import 'core/i18n/app_language.dart';
 import 'widgets/jarvis_drawer.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -16,15 +18,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
   final ApiService _api = ApiService();
   bool _isLoading = true;
   List<Map<String, dynamic>> _logs = [];
-
-  static const _weekdays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-  static const _weekdayFullNames = [
-    'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo',
-  ];
-  static const _months = [
-    'ene', 'feb', 'mar', 'abr', 'may', 'jun',
-    'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
-  ];
 
   @override
   void initState() {
@@ -62,10 +55,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
-  String _formatDate(String isoDate) {
+  String _formatDate(String isoDate, AppLanguage lang) {
     final date = DateTime.tryParse(isoDate);
     if (date == null) return isoDate;
-    return '${_weekdays[date.weekday - 1]} ${date.day} ${_months[date.month - 1]}';
+    return '${lang.weekdayAbbrev[date.weekday - 1]} ${date.day} ${lang.monthAbbrev[date.month - 1]}';
+  }
+
+  String _habitsLabel(int habits, AppLanguage lang) {
+    if (habits == 0) return lang.t('history.noHabits');
+    if (lang.code == 'en') return '$habits habit${habits == 1 ? '' : 's'} confirmed';
+    return '$habits hábito${habits == 1 ? '' : 's'} confirmado${habits == 1 ? '' : 's'}';
+  }
+
+  String _streakLabel(int streak, AppLanguage lang) {
+    if (lang.code == 'en') return 'day streak';
+    return streak == 1 ? 'día seguido' : 'días seguidos';
   }
 
   /// Días consecutivos (contando desde hoy, o desde ayer si todavía no
@@ -145,13 +149,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final lang = context.watch<AppLanguage>();
+    final t = lang.t;
     return Scaffold(
       drawer: const JarvisDrawer(),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-        title: Text('Historial', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(t('history.title'), style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
       body: Container(
         decoration: const BoxDecoration(
@@ -161,28 +167,32 @@ class _HistoryScreenState extends State<HistoryScreen> {
             colors: [Color(0xFF131B2F), Color(0xFF070B14)],
           ),
         ),
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: Color(0xFF00E5FF)))
-            : _logs.isEmpty
-                ? Center(
-                    child: Text(
-                      'Todavía no hay registros.\nVuelve luego de tu primer chequeo de energía.',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.inter(color: Colors.white70, fontSize: 15, height: 1.5),
-                    ),
-                  )
-                : _buildBody(),
+        // Nunca se muestra un mensaje de "no hay registros" (pedido
+        // explícito del usuario): mientras esté cargando o el historial
+        // todavía esté vacío, se queda mostrando el spinner de carga.
+        child: (_isLoading || _logs.isEmpty)
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(color: Color(0xFF00E5FF)),
+                    const SizedBox(height: 16),
+                    Text(t('common.loading'), style: GoogleFonts.inter(color: Colors.white54, fontSize: 13)),
+                  ],
+                ),
+              )
+            : _buildBody(lang),
       ),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(AppLanguage lang) {
     return ListView.builder(
       padding: const EdgeInsets.all(20),
       itemCount: _logs.length + 2,
       itemBuilder: (context, index) {
-        if (index == 0) return _buildInsightsCard();
-        if (index == 1) return _buildPredictionCard();
+        if (index == 0) return _buildInsightsCard(lang);
+        if (index == 1) return _buildPredictionCard(lang);
         final log = _logs[index - 2];
         final habits = _habitCount(log['actions_chosen']);
         return Container(
@@ -200,14 +210,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _formatDate(log['date']?.toString() ?? ''),
+                      _formatDate(log['date']?.toString() ?? '', lang),
                       style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      habits > 0
-                          ? '$habits hábito${habits == 1 ? '' : 's'} confirmado${habits == 1 ? '' : 's'}'
-                          : 'Sin hábitos confirmados',
+                      _habitsLabel(habits, lang),
                       style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
                     ),
                   ],
@@ -223,7 +231,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildInsightsCard() {
+  Widget _buildInsightsCard(AppLanguage lang) {
+    final t = lang.t;
     final streak = _computeStreak();
     final avg = _weeklyAverage();
     final chronological = _logs.reversed.toList(); // más viejo -> más nuevo, para el gráfico
@@ -242,12 +251,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildStat(Icons.local_fire_department, '$streak', streak == 1 ? 'día seguido' : 'días seguidos', const Color(0xFFFF007F)),
-              _buildStat(Icons.bolt, avg != null ? avg.toStringAsFixed(1) : '—', 'promedio 7 días', const Color(0xFF00E5FF)),
+              _buildStat(Icons.local_fire_department, '$streak', _streakLabel(streak, lang), const Color(0xFFFF007F)),
+              _buildStat(Icons.bolt, avg != null ? avg.toStringAsFixed(1) : '—', t('history.weeklyAverage'), const Color(0xFF00E5FF)),
             ],
           ),
           const SizedBox(height: 22),
-          Text('ENERGÍA MATUTINA', style: GoogleFonts.outfit(color: Colors.white38, fontSize: 11, letterSpacing: 1)),
+          Text(t('history.morningEnergyHeader'), style: GoogleFonts.outfit(color: Colors.white38, fontSize: 11, letterSpacing: 1)),
           const SizedBox(height: 12),
           SizedBox(
             height: 60,
@@ -279,11 +288,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _buildPredictionCard() {
+  Widget _buildPredictionCard(AppLanguage lang) {
+    final t = lang.t;
     final prediction = _predictTomorrow();
     if (prediction == null) return const SizedBox.shrink();
 
-    final weekdayName = _weekdayFullNames[prediction.weekday - 1];
+    final weekdayName = lang.weekdayFull[prediction.weekday - 1];
+    final weekdayPlural = lang.code == 'en'
+        ? '${weekdayName}s'
+        : weekdayName; // en español el nombre del día ya no cambia en plural coloquial ("los lunes")
 
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -302,7 +315,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Predicción para mañana ($weekdayName)',
+                  lang.tr('history.predictionTitle', {'weekday': weekdayName}),
                   style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                 ),
               ),
@@ -311,20 +324,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
           const SizedBox(height: 4),
           Text(
             prediction.usedWeekdayPattern
-                ? 'Basado en ${prediction.sampleSize} $weekdayName${prediction.sampleSize == 1 ? '' : 's'} anteriores de tu historial'
-                : 'Todavía no hay suficientes $weekdayName registrados; se usa tu patrón general',
+                ? lang.tr('history.predictionBasedOn', {'count': '${prediction.sampleSize}', 'weekday': weekdayPlural})
+                : lang.tr('history.predictionFallback', {'weekday': weekdayPlural}),
             style: GoogleFonts.inter(color: Colors.white54, fontSize: 11, height: 1.4),
           ),
           const SizedBox(height: 16),
-          _buildPredictionBar('Alta', prediction.highPct, const Color(0xFF00E5FF)),
+          _buildPredictionBar(t('history.levelHigh'), prediction.highPct, const Color(0xFF00E5FF)),
           const SizedBox(height: 8),
-          _buildPredictionBar('Normal', prediction.normalPct, const Color(0xFFFFD700)),
+          _buildPredictionBar(t('history.levelNormal'), prediction.normalPct, const Color(0xFFFFD700)),
           const SizedBox(height: 8),
-          _buildPredictionBar('Baja', prediction.lowPct, const Color(0xFFFF007F)),
+          _buildPredictionBar(t('history.levelLow'), prediction.lowPct, const Color(0xFFFF007F)),
           if (prediction.sampleSize < 5) ...[
             const SizedBox(height: 14),
             Text(
-              'Aún es pronto para una predicción confiable. Sigue registrando tu energía a diario.',
+              t('history.lowConfidence'),
               style: GoogleFonts.inter(color: Colors.white38, fontSize: 11, height: 1.4),
             ),
           ],
