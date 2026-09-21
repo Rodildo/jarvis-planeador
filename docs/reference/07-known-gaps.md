@@ -12,7 +12,7 @@
 3. Confirmar una compilación **release** (no debug) funcionando de punta a punta en un dispositivo real — el crash de pantalla blanca ya se arregló, pero conviene una prueba explícita en modo release.
 4. No hay reportes de errores/crashes (Sentry, Firebase Crashlytics o similar) — si la app le falla a un usuario, no hay forma de enterarse salvo que lo reporte.
 5. Sin alerta de presupuesto en el dashboard de OpenRouter — el rate limiting interno protege contra bugs en bucle, pero no hay techo de gasto configurado del lado del proveedor.
-6. El número de versión (`pubspec.yaml` → `version: 1.0.0+1`) no se ha subido desde el inicio del proyecto. Si se van a repartir APKs actualizados a la misma gente, Android necesita que ese número suba en cada build para reconocer que es una actualización.
+6. El número de versión (`pubspec.yaml` → `version: 1.0.0+1`) sigue en su valor inicial. Ahora tiene más peso que antes: desde el mecanismo de actualización forzada (ver [06-decisions.md](06-decisions.md)), el `+N` (build number) debe mantenerse sincronizado a mano con `kAppBuildNumber` (`frontend/lib/core/app_info.dart`) en cada release — si se te olvida subir alguno de los dos, el chequeo de versión obsoleta queda desalineado. Además, Android sigue necesitando que ese número suba en cada build para reconocer que es una actualización real.
 7. Cobertura de tests del frontend es un solo smoke test (`test/widget_test.dart`). El backend tiene cobertura real (9 suites / 32 tests); el frontend no.
 8. No hay CI (los tests y `flutter analyze`/`tsc --noEmit` se corren manualmente en cada sesión de edición, no automático en cada push).
 
