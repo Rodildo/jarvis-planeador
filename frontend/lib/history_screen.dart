@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -18,6 +19,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
   final ApiService _api = ApiService();
   bool _isLoading = true;
   List<Map<String, dynamic>> _logs = [];
+  Timer? _retryTimer;
+  bool _isFetching = false;
 
   @override
   void initState() {
@@ -25,15 +28,39 @@ class _HistoryScreenState extends State<HistoryScreen> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _retryTimer?.cancel();
+    super.dispose();
+  }
+
+  // getHistory ya reintenta solo ante fallas de red (ver api_service.dart,
+  // ~2.4s en total), pero eso puede no bastar tras un rato largo con la
+  // app cerrada. Como esta pantalla nunca muestra "no hay registros"
+  // (pedido explícito del usuario), en vez de quedarse pegada en el
+  // spinner para siempre, se reintenta cada 3 segundos hasta que aparezca
+  // algo. `_isFetching` evita llamadas superpuestas si un intento tarda
+  // más de 3 segundos, y el timer se cancela apenas hay datos o la
+  // pantalla se cierra — así nunca queda un bucle suelto.
   Future<void> _load() async {
-    // Un año completo: mientras más historial, más confiable el patrón por
-    // día de la semana que alimenta la predicción de mañana.
-    final logs = await _api.getHistory(days: 365);
-    if (mounted) {
-      setState(() {
-        _logs = logs;
-        _isLoading = false;
-      });
+    if (_isFetching) return;
+    _isFetching = true;
+    try {
+      // Un año completo: mientras más historial, más confiable el patrón
+      // por día de la semana que alimenta la predicción de mañana.
+      final logs = await _api.getHistory(days: 365);
+      if (!mounted) return;
+      if (logs.isNotEmpty) {
+        _retryTimer?.cancel();
+        setState(() {
+          _logs = logs;
+          _isLoading = false;
+        });
+        return;
+      }
+      _retryTimer ??= Timer.periodic(const Duration(seconds: 3), (_) => _load());
+    } finally {
+      _isFetching = false;
     }
   }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -36,6 +37,8 @@ class _BlueprintScreenState extends State<BlueprintScreen> {
   bool _isLoading = true;
   Map<String, dynamic>? _blueprint;
   DateTime? _updatedAt;
+  Timer? _retryTimer;
+  bool _isFetching = false;
 
   @override
   void initState() {
@@ -43,20 +46,41 @@ class _BlueprintScreenState extends State<BlueprintScreen> {
     _loadBlueprint();
   }
 
+  @override
+  void dispose() {
+    _retryTimer?.cancel();
+    super.dispose();
+  }
+
   // getLifeBlueprint ya reintenta solo ante fallas de red (ver
-  // api_service.dart). Si de verdad no hay blueprint, o si las 3
-  // reintentos fallan igual, esta pantalla nunca muestra un mensaje de
-  // error/vacío (pedido explícito del usuario) — se queda mostrando el
-  // spinner de carga en vez de eso.
+  // api_service.dart, ~2.4s en total), pero eso puede no bastar tras un
+  // rato largo con la app cerrada (la conexión tarda más en "despertar").
+  // Como esta pantalla nunca muestra un mensaje de error/vacío (pedido
+  // explícito del usuario), en vez de quedarse pegada en el spinner para
+  // siempre, se reintenta cada 3 segundos hasta que aparezcan los datos.
+  // `_isFetching` evita que dos llamadas queden corriendo a la vez si un
+  // intento tarda más de 3 segundos, y el timer se cancela apenas hay
+  // éxito o la pantalla se cierra — así nunca queda un bucle suelto.
   Future<void> _loadBlueprint() async {
-    final data = await _api.getLifeBlueprint();
-    if (!mounted || data?['blueprint'] == null) return;
-    setState(() {
-      _blueprint = data!['blueprint'];
-      final rawUpdatedAt = data['updatedAt'];
-      _updatedAt = rawUpdatedAt != null ? DateTime.tryParse('${rawUpdatedAt}Z') : null;
-      _isLoading = false;
-    });
+    if (_isFetching) return;
+    _isFetching = true;
+    try {
+      final data = await _api.getLifeBlueprint();
+      if (!mounted) return;
+      if (data?['blueprint'] != null) {
+        _retryTimer?.cancel();
+        setState(() {
+          _blueprint = data!['blueprint'];
+          final rawUpdatedAt = data['updatedAt'];
+          _updatedAt = rawUpdatedAt != null ? DateTime.tryParse('${rawUpdatedAt}Z') : null;
+          _isLoading = false;
+        });
+        return;
+      }
+      _retryTimer ??= Timer.periodic(const Duration(seconds: 3), (_) => _loadBlueprint());
+    } finally {
+      _isFetching = false;
+    }
   }
 
   Future<void> _confirmAndStartRebrief() async {
