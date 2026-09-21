@@ -1,4 +1,4 @@
-import { generateBlueprint } from '../../src/ai/gemini';
+import { generateBlueprint, generateMidDayReplan, energyModeChanged } from '../../src/ai/gemini';
 
 describe('Gemini AI Layer (OpenRouter)', () => {
     beforeEach(() => {
@@ -53,5 +53,61 @@ describe('Gemini AI Layer (OpenRouter)', () => {
 
         expect(fetchMock).toHaveBeenCalledTimes(2);
         expect(result.goals).toContain('Recovered Goal');
+    });
+});
+
+describe('energyModeChanged', () => {
+    it('is false when both levels fall in the same bucket (refugio/estable/expansion)', () => {
+        expect(energyModeChanged(1, 2)).toBe(false);
+        expect(energyModeChanged(3, 3)).toBe(false);
+        expect(energyModeChanged(4, 5)).toBe(false);
+    });
+
+    it('is true when the levels cross into a different bucket', () => {
+        expect(energyModeChanged(5, 1)).toBe(true);
+        expect(energyModeChanged(2, 3)).toBe(true);
+        expect(energyModeChanged(3, 4)).toBe(true);
+    });
+});
+
+describe('generateMidDayReplan', () => {
+    beforeEach(() => {
+        jest.restoreAllMocks();
+        process.env.OPENROUTER_API_KEY = 'mocked_test_key';
+    });
+
+    it('asks for updated midday/night tasks plus a message, with an explicit max_tokens', async () => {
+        const fetchMock = jest.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                choices: [{ message: { content: '{"message": "Bajemos el ritmo.", "midday": [], "night": []}' } }]
+            })
+        });
+        global.fetch = fetchMock as unknown as typeof fetch;
+
+        const result = await generateMidDayReplan({ areas: {} }, 1, { midday: [], night: [] });
+
+        expect(result.message).toBe('Bajemos el ritmo.');
+        expect(result).toHaveProperty('midday');
+        expect(result).toHaveProperty('night');
+
+        const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+        expect(requestBody.max_tokens).toBeGreaterThan(0);
+        expect(requestBody.response_format).toEqual({ type: 'json_object' });
+    });
+
+    it('retries with a fresh generation when the model truncates the JSON mid-response', async () => {
+        const truncated = '{"message": "Bajemos el rit';
+        const complete = '{"message": "Bajemos el ritmo.", "midday": [{"task": "Descansa", "reason": "r"}], "night": []}';
+
+        const fetchMock = jest.fn()
+            .mockResolvedValueOnce({ ok: true, json: async () => ({ choices: [{ message: { content: truncated } }] }) })
+            .mockResolvedValueOnce({ ok: true, json: async () => ({ choices: [{ message: { content: complete } }] }) });
+        global.fetch = fetchMock as unknown as typeof fetch;
+
+        const result = await generateMidDayReplan({ areas: {} }, 1, { midday: [], night: [] });
+
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(result.midday[0].task).toBe('Descansa');
     });
 });

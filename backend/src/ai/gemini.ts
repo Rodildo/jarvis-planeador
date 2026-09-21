@@ -131,15 +131,34 @@ export const generateBlueprint = async (answers: any, previousBlueprint?: any): 
     return callOpenRouterAndParseJson(systemPrompt, userPrompt, 3000, 'blueprint');
 };
 
-export const generateDailyPlan = async (blueprint: any, energyLevel: number, userName?: string): Promise<any> => {
-    let modeContext = "";
-    if (energyLevel <= 2) {
-        modeContext = "MODO REFUGIO: Baja energía (1-2). Pocas tareas, mínimas y sin culpa. Nada que requiera gran esfuerzo mental o físico.";
-    } else if (energyLevel >= 4) {
-        modeContext = "MODO ALTA ENERGÍA (Expansión): Energía alta (4-5). Tareas más ambiciosas y estratégicas permitidas, pero incluye al menos un freno saludable (descanso, límite) para evitar el sobreesfuerzo.";
-    } else {
-        modeContext = "MODO RITMO ESTABLE (Baseline): Energía normal (3). Avance constante sin sobreesfuerzo.";
+// Los mismos 3 baldes de energía se usan para decidir el tono del plan
+// (generateDailyPlan) y para decidir si un chequeo de mediodía amerita
+// regenerar tareas (generateMidDayReplan / energyModeChanged en routes.ts):
+// si el nivel se mueve de un balde a otro, el plan original ya no encaja.
+type EnergyMode = 'refugio' | 'estable' | 'expansion';
+
+const energyMode = (level: number): EnergyMode => {
+    if (level <= 2) return 'refugio';
+    if (level >= 4) return 'expansion';
+    return 'estable';
+};
+
+export const energyModeChanged = (levelA: number, levelB: number): boolean =>
+    energyMode(levelA) !== energyMode(levelB);
+
+const modeDescription = (mode: EnergyMode): string => {
+    switch (mode) {
+        case 'refugio':
+            return "MODO REFUGIO: Baja energía (1-2). Pocas tareas, mínimas y sin culpa. Nada que requiera gran esfuerzo mental o físico.";
+        case 'expansion':
+            return "MODO ALTA ENERGÍA (Expansión): Energía alta (4-5). Tareas más ambiciosas y estratégicas permitidas, pero incluye al menos un freno saludable (descanso, límite) para evitar el sobreesfuerzo.";
+        case 'estable':
+            return "MODO RITMO ESTABLE (Baseline): Energía normal (3). Avance constante sin sobreesfuerzo.";
     }
+};
+
+export const generateDailyPlan = async (blueprint: any, energyLevel: number, userName?: string): Promise<any> => {
+    const modeContext = modeDescription(energyMode(energyLevel));
 
     const nameNote = userName ? `Se llama ${userName}; dirígete a él/ella por su nombre en el saludo, de forma natural (no en cada oración).` : '';
 
@@ -175,5 +194,36 @@ export const generateMidDayAdjustment = async (blueprint: any, morningEnergy: nu
     Si la energía subió o se mantiene bien, dale un pequeño empujón motivacional para las tareas de "midday"/"night" pendientes, recordándole cuidar su ciclo de sueño.`;
 
     return await callOpenRouter(systemPrompt, userPrompt, false, 300);
+};
+
+// Se usa en vez de generateMidDayAdjustment cuando el nivel de energía a
+// mitad de día cruzó a un balde distinto (ver energyModeChanged): ahí el
+// plan original ya no encaja de verdad, así que en vez de solo un mensaje
+// de ánimo se regeneran las tareas que faltan (midday/night — lo de la
+// mañana ya pasó, no se toca).
+export const generateMidDayReplan = async (
+    blueprint: any, middayEnergy: number, currentPlan: any, userName?: string
+): Promise<{ message: string; midday: any[]; night: any[] }> => {
+    const modeContext = modeDescription(energyMode(middayEnergy));
+    const nameNote = userName ? `Se llama ${userName}; dirígete a él/ella por su nombre de forma natural.` : '';
+
+    const systemPrompt = `Eres Jarvis, el guía y estratega de vida del usuario. Ya le diste un plan para hoy esta mañana, pero su energía cambió de forma importante a mitad del día y ese plan ya no encaja. Ajusta SOLO lo que falta del día: las tareas de "durante el día" (midday) y "al final del día" (night). No toques ni menciones lo de la mañana, eso ya pasó. La energía de una persona puede variar bastante de un día a otro por muchas razones (salud física o mental, sueño, estrés, u otras); nunca asumas ni menciones un diagnóstico específico, solo responde a la energía reportada. ${nameNote}
+    Devuelve estrictamente un JSON con este formato exacto:
+    {
+      "message": "Mensaje corto y empático explicando el ajuste (por qué cambia el plan de aquí en adelante).",
+      "midday": [ { "task": "Acción concreta", "reason": "Por qué esta tarea, ligada a una meta del blueprint (breve)" } ],
+      "night": [ { "task": "Acción concreta", "reason": "string breve" } ]
+    }
+    Reglas:
+    - Cada lista debe tener entre 1 y 4 tareas según el nuevo nivel de energía (menos y más simples si bajó, pueden ser más ambiciosas si subió).
+    - Todas las tareas deben conectar con al menos una meta del blueprint, nunca genéricas o vacías.
+    - Si la energía bajó mucho, prioriza descanso y lo mínimo indispensable, sin culpa.`;
+
+    const userPrompt = `Life Blueprint del usuario: ${JSON.stringify(blueprint)}
+    Plan original de hoy (su "midday"/"night" ya no están vigentes): ${JSON.stringify(currentPlan)}
+    Nueva energía reportada a mitad del día: ${middayEnergy}/5. Contexto: ${modeContext}
+    Genera el ajuste de "midday" y "night" siguiendo el formato indicado.`;
+
+    return callOpenRouterAndParseJson(systemPrompt, userPrompt, 1800, 'midday replan');
 };
 

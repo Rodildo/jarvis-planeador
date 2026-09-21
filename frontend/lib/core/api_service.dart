@@ -376,7 +376,11 @@ class ApiService {
     return response.statusCode == 200;
   }
 
-  Future<String> triggerMiddayCheck(int energyLevel) async {
+  /// Devuelve { message, plan, completed }. `plan`/`completed` solo vienen
+  /// presentes cuando el backend decidió que el cambio de energía ameritaba
+  /// regenerar las tareas restantes del día (mediodía/noche); si no, vienen
+  /// null y el plan actual no cambia.
+  Future<Map<String, dynamic>> triggerMiddayCheck(int energyLevel) async {
     final response = await http.post(
       Uri.parse('$baseUrl/midday'),
       headers: _headers,
@@ -387,7 +391,12 @@ class ApiService {
     );
     _reportIfUnauthorized(response);
     if (response.statusCode == 200) {
-      return jsonDecode(response.body)['message'];
+      final data = jsonDecode(response.body);
+      return {
+        'message': data['message'],
+        'plan': data['plan'],
+        'completed': data['completed'],
+      };
     }
     throw Exception(_friendlyError(response, 'No se pudo hacer el chequeo de energía.'));
   }

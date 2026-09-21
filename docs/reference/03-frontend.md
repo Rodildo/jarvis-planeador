@@ -75,6 +75,7 @@ Estado: `plan` (`{greeting, morning, midday, night}`), `completed` (`Map<String,
 - `_hydrateToday()`: al construirse, pide `/daily-log/<hoy>` y si `actions_chosen` ya tiene un plan guardado, restaura el estado completo (así cerrar y abrir la app no reinicia el día).
 - Cada cambio (marcar tarea, agregar/quitar tarea manual) llama a `_persistState()`, que manda el objeto `{plan, completed, manualTasks}` completo a `/daily-actions` — **no hay merge parcial en el backend**, cada guardado sobreescribe todo.
 - Al generar el plan (`requestDailyPlan`), agenda la notificación de mitad de día 6h después.
+- `triggerMiddayCheck()`: si la respuesta de `/midday` trae `plan` (el backend decidió que el cambio de energía ameritaba regenerar `midday`/`night`, ver [06-decisions.md](06-decisions.md)), reemplaza `plan` y `completed` enteros con lo que vino del backend y llama a `_persistState()`. Si no trae `plan` (cambio de energía menor), solo actualiza el mensaje — las tareas del día no cambian.
 
 ## `core/notification_service.dart` — 3 notificaciones/día
 

@@ -186,7 +186,19 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      jarvisMessage = await _api.triggerMiddayCheck(energyLevel);
+      final result = await _api.triggerMiddayCheck(energyLevel);
+      jarvisMessage = result['message']?.toString() ?? '';
+
+      // Si el backend regeneró midday/night por un cambio grande de
+      // energía, vienen el plan y los "completada" ya ajustados: se
+      // reemplaza el estado local entero para no quedar desincronizados.
+      final updatedPlan = result['plan'] as Map<String, dynamic>?;
+      if (updatedPlan != null) {
+        plan = updatedPlan;
+        completed = Map<String, bool>.from(result['completed'] ?? {});
+        await _persistState();
+      }
+
       showMiddayInput = false;
     } catch (e) {
       jarvisMessage = "${e.toString().replaceFirst('Exception: ', '')} Revisa tu conexión e intenta de nuevo.";

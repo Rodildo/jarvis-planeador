@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
-import { generateBlueprint, generateDailyPlan, generateMidDayAdjustment, LIFE_AREAS } from '../ai/gemini';
+import { generateBlueprint, generateDailyPlan, generateMidDayAdjustment, generateMidDayReplan, energyModeChanged, LIFE_AREAS } from '../ai/gemini';
 import {
     saveBlueprint, getBlueprint, getBlueprintUpdatedAt, saveMorningLog, saveMiddayLog, saveDailyActions, getDailyLog,
     getRecentDailyLogs, hasBlueprint, saveOnboardingProgress, getOnboardingProgress, clearOnboardingProgress,
@@ -335,8 +335,38 @@ apiRouter.post('/midday', aiCostLimiter, async (req: AuthedRequest, res) => {
         let dailyState: any = {};
         if (dailyLog.actions_chosen) dailyState = JSON.parse(dailyLog.actions_chosen);
 
-        const message = await generateMidDayAdjustment(JSON.parse(blueprintData), dailyLog.energy_morning, energyLevel, dailyState.plan ?? dailyState);
-        res.status(200).json({ success: true, message });
+        const blueprint = JSON.parse(blueprintData);
+        const morningEnergy = dailyLog.energy_morning;
+        const currentPlan = dailyState.plan ?? dailyState;
+
+        // Si el nivel de energía cruzó a un balde distinto (refugio/estable/
+        // expansión) desde la mañana, el plan original ya no encaja de
+        // verdad: se regeneran midday/night en vez de solo dar un mensaje.
+        if (morningEnergy != null && energyModeChanged(morningEnergy, energyLevel)) {
+            const user = await getUserById(userId);
+            const replan = await generateMidDayReplan(blueprint, energyLevel, currentPlan, user?.first_name);
+
+            const updatedPlan = { ...currentPlan, midday: replan.midday, night: replan.night };
+
+            // Las tareas de midday/night cambiaron, así que los "completada"
+            // guardados para esos bloques ya no corresponden a nada real;
+            // se descartan. Lo de la mañana y las tareas manuales del
+            // usuario quedan intactos.
+            const oldCompleted: Record<string, boolean> = dailyState.completed ?? {};
+            const completed: Record<string, boolean> = {};
+            for (const key of Object.keys(oldCompleted)) {
+                if (key.startsWith('ai-midday-') || key.startsWith('ai-night-')) continue;
+                completed[key] = oldCompleted[key] ?? false;
+            }
+
+            const updatedState = { plan: updatedPlan, completed, manualTasks: dailyState.manualTasks ?? [] };
+            await saveDailyActions(userId, date, updatedState);
+
+            res.status(200).json({ success: true, message: replan.message, plan: updatedPlan, completed });
+        } else {
+            const message = await generateMidDayAdjustment(blueprint, morningEnergy, energyLevel, currentPlan);
+            res.status(200).json({ success: true, message });
+        }
     } catch (error: any) {
         console.error('Midday Error:', error);
         res.status(500).json({ error: error.stack || String(error) || 'Internal server error' });

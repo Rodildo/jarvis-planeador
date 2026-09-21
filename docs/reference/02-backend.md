@@ -72,7 +72,7 @@ Todos bajo el prefijo `/api`. 🔓 = público. 🔒 = requiere `Authorization: B
 | POST | `/daily-plan` | 🔒 + `aiCostLimiter` | `{ date, energyLevel }` → guarda `energy_morning`, genera el plan de 3 bloques con la IA (usa el nombre del usuario para el saludo) |
 | POST | `/daily-actions` | 🔒 | `{ date, actions }` — `actions` es el estado completo del día (plan + tareas completadas + tareas manuales), se sobreescribe entero en cada cambio, no hay merge parcial |
 | GET | `/daily-log/:date` | 🔒 | La fila cruda de `daily_logs` para esa fecha |
-| POST | `/midday` | 🔒 + `aiCostLimiter` | `{ date, energyLevel }` → guarda `energy_midday`, genera un mensaje de ajuste con la IA basado en cómo cambió la energía |
+| POST | `/midday` | 🔒 + `aiCostLimiter` | `{ date, energyLevel }` → guarda `energy_midday`. Si el nivel de energía sigue en el mismo "balde" (Refugio/Estable/Expansión) que el de la mañana, devuelve solo `{ message }` con un mensaje de ajuste. Si cruzó a un balde distinto, regenera `midday`/`night` con la IA, descarta los `completed` de esos bloques (ya no corresponden a las tareas nuevas) y devuelve `{ message, plan, completed }` — el plan actualizado ya queda persistido en `actions_chosen` |
 | GET | `/history` | 🔒 | `?days=N` (default 30, tope 365) → lista de `daily_logs` ordenados DESC por fecha |
 
 ## Base de datos (SQLite, `db/database.ts`)
@@ -125,11 +125,13 @@ No hay sistema de migraciones real. El patrón usado es: `CREATE TABLE IF NOT EX
 - `callOpenRouterAndParseJson(systemPrompt, userMessage, maxTokens, label)`: usada por `generateBlueprint`/`generateDailyPlan`. Si `extractJson` falla (JSON truncado — la llamada a OpenRouter "tuvo éxito" pero el texto se cortó antes de cerrar todas las llaves), **reintenta la generación completa** (hasta 2 intentos), no solo el parseo — reparsear el mismo texto cortado no sirve, hace falta que el modelo genere de nuevo. Esto es distinto del retry de `callOpenRouter` (que solo cubre fallos de red/HTTP, no este caso).
 - **Único lugar donde se le habla a la IA sobre condiciones de salud**: el prompt de `generateDailyPlan` dice explícitamente "nunca asumas ni menciones un diagnóstico específico, solo responde a la energía reportada" — esto es deliberado, ver [06-decisions.md](06-decisions.md) (`bipolaridad` era hardcodeado antes y se generalizó).
 
-Tres funciones exportadas, todas detalladas con su prompt completo en el archivo fuente:
+Funciones exportadas, todas detalladas con su prompt completo en el archivo fuente:
 - `generateBlueprint(answers, previousBlueprint?)`
 - `generateDailyPlan(blueprint, energyLevel, userName?)`
-- `generateMidDayAdjustment(blueprint, morningEnergy, middayEnergy, dailyPlan)`
+- `generateMidDayAdjustment(blueprint, morningEnergy, middayEnergy, dailyPlan)` — mensaje corto, no toca el plan
+- `generateMidDayReplan(blueprint, middayEnergy, currentPlan, userName?)` — regenera `midday`/`night` + mensaje, cuando el balde de energía cambió (ver [06-decisions.md](06-decisions.md))
+- `energyModeChanged(levelA, levelB)` — helper compartido: compara dos niveles 1-5 contra los 3 baldes (Refugio ≤2 / Estable =3 / Expansión ≥4) usados tanto por `generateDailyPlan` como por la decisión de `/midday` de regenerar o no
 
 ## Tests
 
-`backend/tests/`, con Jest. 9 suites, 31 tests a la fecha de este documento. Corren con `npm test`. Cobertura: auth (registro/login/cambio de contraseña/rate limiting/trust proxy), cuenta (perfil/avatar/eliminar), rutas de brief/blueprint/daily-plan, capa de IA (mockeada), y la capa de base de datos.
+`backend/tests/`, con Jest. 10 suites, 41 tests a la fecha de este documento. Corren con `npm test`. Cobertura: auth (registro/login/cambio de contraseña/rate limiting/trust proxy), cuenta (perfil/avatar/eliminar), rutas de brief/blueprint/daily-plan/midday, capa de IA (mockeada), y la capa de base de datos.
