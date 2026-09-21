@@ -18,10 +18,10 @@ export const apiRouter = Router();
 // el "+N" de la versión en pubspec.yaml en cada release) — si el cliente
 // tiene un build menor, se bloquea con la pantalla de actualización
 // obligatoria. Ver docs/reference/06-decisions.md.
-const MIN_SUPPORTED_BUILD_NUMBER = 1;
+const MIN_SUPPORTED_BUILD_NUMBER = 2;
 
 apiRouter.get('/version', (req, res) => {
-    res.json({ version: '5.2.0-i18n', minBuildNumber: MIN_SUPPORTED_BUILD_NUMBER });
+    res.json({ version: '5.3.0-force-update', minBuildNumber: MIN_SUPPORTED_BUILD_NUMBER });
 });
 
 apiRouter.get('/life-areas', (req, res) => {
