@@ -166,11 +166,23 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Sale del chequeo de mitad de día sin responder, volviendo a mostrar
+  /// el plan. Antes, si el chequeo fallaba, no había forma de salir de
+  /// esta pantalla: los botones de energía se quedaban ahí para siempre.
+  void dismissMiddayCheck() {
+    showMiddayInput = false;
+    jarvisMessage = plan?['greeting']?.toString() ?? 'Aquí está tu plan de hoy.';
+    notifyListeners();
+  }
+
   Future<void> triggerMiddayCheck(String textInput) async {
     final energyLevel = _parseEnergyLevel(textInput);
     if (energyLevel == null) return;
 
     isLoading = true;
+    // Limpia cualquier mensaje de error de un intento anterior, para que
+    // no se vea el error viejo superpuesto con el spinner del intento nuevo.
+    jarvisMessage = 'Registrando tu chequeo de energía...';
     notifyListeners();
 
     try {

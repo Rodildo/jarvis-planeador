@@ -305,15 +305,38 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                     child: Container(
-                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
                       decoration: BoxDecoration(
                         color: Colors.black.withValues(alpha: 0.4),
                         border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          for (int level = 1; level <= 5; level++) _buildEnergyButton(level, provider),
+                          // Salida de emergencia: si el chequeo de mitad de
+                          // día falla o el usuario cambia de opinión, esto
+                          // evita quedarse atrapado viendo solo los botones
+                          // de energía sin poder volver a ver su plan.
+                          if (provider.showMiddayInput)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: GestureDetector(
+                                  onTap: provider.isLoading ? null : provider.dismissMiddayCheck,
+                                  child: Text(
+                                    'Cancelar',
+                                    style: GoogleFonts.inter(color: Colors.white54, fontSize: 13),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              for (int level = 1; level <= 5; level++) _buildEnergyButton(level, provider),
+                            ],
+                          ),
                         ],
                       ),
                     ),
