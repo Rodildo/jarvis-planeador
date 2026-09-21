@@ -18,7 +18,7 @@ export const LIFE_AREAS: LifeArea[] = [
 export const QUESTIONS_PER_AREA = 10;
 export const TOTAL_ONBOARDING_QUESTIONS = LIFE_AREAS.length * QUESTIONS_PER_AREA;
 
-const callOpenRouter = async (systemPrompt: string, userMessage: string, forceJson: boolean = false): Promise<string> => {
+const callOpenRouter = async (systemPrompt: string, userMessage: string, forceJson: boolean = false, maxTokens: number = 700): Promise<string> => {
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) throw new Error('OPENROUTER_API_KEY not configured');
 
@@ -27,7 +27,13 @@ const callOpenRouter = async (systemPrompt: string, userMessage: string, forceJs
         messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userMessage }
-        ]
+        ],
+        // Sin esto, el modelo usa su propio default (a veces bajo) y puede
+        // cortar la respuesta a mitad de un JSON largo (blueprint/plan
+        // diario), dejando un JSON inválido que extractJson no puede
+        // parsear. Cada llamada le pasa un valor generoso para lo que
+        // realmente necesita generar.
+        max_tokens: maxTokens,
     };
 
     if (forceJson) {
@@ -83,6 +89,26 @@ const extractJson = (text: string, errorLabel: string): any => {
     }
 };
 
+// callOpenRouter ya reintenta fallos de red/HTTP, pero no un JSON que
+// vino truncado (la llamada "tuvo éxito", solo que el texto no es JSON
+// válido). Ese caso necesita pedirle al modelo que genere de nuevo, no
+// solo reparsear lo mismo — por eso reintenta la llamada completa.
+const callOpenRouterAndParseJson = async (
+    systemPrompt: string, userMessage: string, maxTokens: number, errorLabel: string
+): Promise<any> => {
+    let lastError: any = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+        const text = await callOpenRouter(systemPrompt, userMessage, true, maxTokens);
+        try {
+            return extractJson(text, errorLabel);
+        } catch (err) {
+            lastError = err;
+            console.error(`${errorLabel}: intento ${attempt} de generar JSON válido falló`);
+        }
+    }
+    throw lastError;
+};
+
 export const generateBlueprint = async (answers: any, previousBlueprint?: any): Promise<any> => {
     const areaKeys = LIFE_AREAS.map(a => `"${a.key}"`).join(', ');
     const systemPrompt = `Actúa como un experto planificador de vida y psicólogo. El usuario respondió una entrevista de ${TOTAL_ONBOARDING_QUESTIONS} preguntas organizada en 5 áreas de vida: ${LIFE_AREAS.map(a => a.label).join(', ')}.
@@ -102,8 +128,7 @@ export const generateBlueprint = async (answers: any, previousBlueprint?: any): 
 
     const userPrompt = `Respuestas del usuario a las ${TOTAL_ONBOARDING_QUESTIONS} preguntas: ${JSON.stringify(answers)}${updateNote}`;
 
-    const text = await callOpenRouter(systemPrompt, userPrompt, true);
-    return extractJson(text, 'blueprint');
+    return callOpenRouterAndParseJson(systemPrompt, userPrompt, 3000, 'blueprint');
 };
 
 export const generateDailyPlan = async (blueprint: any, energyLevel: number, userName?: string): Promise<any> => {
@@ -137,8 +162,7 @@ export const generateDailyPlan = async (blueprint: any, energyLevel: number, use
     HOY: el usuario reporta un nivel de energía matutino de ${energyLevel}/5. Contexto: ${modeContext}
     Genera el plan completo del día (morning/midday/night) siguiendo el formato indicado.`;
 
-    const text = await callOpenRouter(systemPrompt, userPrompt, true);
-    return extractJson(text, 'daily plan');
+    return callOpenRouterAndParseJson(systemPrompt, userPrompt, 2000, 'daily plan');
 };
 
 export const generateMidDayAdjustment = async (blueprint: any, morningEnergy: number, middayEnergy: number, dailyPlan: any): Promise<string> => {
@@ -150,6 +174,6 @@ export const generateMidDayAdjustment = async (blueprint: any, morningEnergy: nu
     Si la energía bajó drásticamente, dile que es hora de parar y priorizar el descanso, y que simplifique las tareas de la tarde/noche.
     Si la energía subió o se mantiene bien, dale un pequeño empujón motivacional para las tareas de "midday"/"night" pendientes, recordándole cuidar su ciclo de sueño.`;
 
-    return await callOpenRouter(systemPrompt, userPrompt, false);
+    return await callOpenRouter(systemPrompt, userPrompt, false, 300);
 };
 
