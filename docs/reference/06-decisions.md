@@ -74,3 +74,11 @@ Al agregar Política de Privacidad y Términos, se decidió exigir un checkbox e
 ## Ícono/logo: fondo cuadrado + capa adaptativa separada
 
 El logo que dio el usuario (233×246px, fondo azul marino + "J" blanca con sombra diagonal) no era cuadrado. Se rellenó a cuadrado con el mismo azul del fondo (no se estiró, para no distorsionar la letra). Para el ícono adaptativo de Android (`mipmap-anydpi-v26`) se generó una capa aparte con solo la "J" blanca sobre transparente (extraída por umbral de blancura, no por diferencia con el azul de fondo — así no arrastra la sombra diagonal como ruido), y el color de fondo se separó a `colors.xml`. El ícono de notificación usa esa misma capa transparente, redimensionada — un ícono a color ahí se vería como un bloque sólido, porque Android tiñe los íconos de notificación automáticamente a blanco/monocromático.
+
+## "No se pudo generar tu plan del día" — timeout de proxy vs. JSON truncado
+
+Un usuario reportó que, tras dejar la app inactiva ~1 hora, al pedir el plan del día se quedaba con ese mensaje genérico. La primera hipótesis (sin ver logs todavía) fue un timeout del proxy (Traefik/EasyPanel) devolviendo una página de error no-JSON tras un arranque en frío — se mejoró `_friendlyError` en el frontend para al menos mostrar el código HTTP real en ese caso (mejora válida igual, se mantiene).
+
+Pero al ver los logs reales del backend, la causa era otra: `extractJson` fallaba con `SyntaxError: Unexpected end of JSON input` porque el `content` que devolvía OpenRouter venía **cortado a mitad de un string JSON** (el plan traía varias tareas verbosas y nunca se le pasó un `max_tokens` explícito a la petición, así que usaba el default del modelo). Esto no era un problema de red/proxy: la llamada a OpenRouter "tuvo éxito" con status 200, solo que el texto no alcanzó a completarse. Por eso `callOpenRouter`'s propio retry (pensado para fallos de red/HTTP) nunca se activaba — la respuesta técnicamente no había fallado.
+
+Lección: cuando un reporte de usuario no cuadra del todo con la primera hipótesis, vale la pena pedir los logs reales del servicio en vez de asumir — la causa real (`max_tokens` faltante) era una categoría de bug completamente distinta a la que se había arreglado primero.

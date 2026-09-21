@@ -119,9 +119,10 @@ No hay sistema de migraciones real. El patrón usado es: `CREATE TABLE IF NOT EX
 
 ## Integración con IA (`ai/gemini.ts`)
 
-- `callOpenRouter(systemPrompt, userMessage, forceJson)`: hace el POST a OpenRouter, 3 reintentos con 1.5s de espera entre cada uno, usa `response_format: json_object` cuando `forceJson=true`.
+- `callOpenRouter(systemPrompt, userMessage, forceJson, maxTokens)`: hace el POST a OpenRouter, 3 reintentos con 1.5s de espera entre cada uno (solo cubre fallos de red/HTTP), usa `response_format: json_object` cuando `forceJson=true`. `maxTokens` es obligatorio pasarlo explícito (default 700 si se omite) — sin esto el modelo usa su propio límite por defecto, que puede cortar a mitad un JSON largo.
 - Modelo fijo: `deepseek/deepseek-v3.2` (constante `MODEL_NAME`, se cambió varias veces en el pasado — ver `procesos_historial.txt` para el porqué de cada cambio).
 - `extractJson(text, label)`: extrae el primer `{...}` del texto devuelto por la IA con una regex y lo parsea — no confía en que la IA devuelva *solo* JSON limpio.
+- `callOpenRouterAndParseJson(systemPrompt, userMessage, maxTokens, label)`: usada por `generateBlueprint`/`generateDailyPlan`. Si `extractJson` falla (JSON truncado — la llamada a OpenRouter "tuvo éxito" pero el texto se cortó antes de cerrar todas las llaves), **reintenta la generación completa** (hasta 2 intentos), no solo el parseo — reparsear el mismo texto cortado no sirve, hace falta que el modelo genere de nuevo. Esto es distinto del retry de `callOpenRouter` (que solo cubre fallos de red/HTTP, no este caso).
 - **Único lugar donde se le habla a la IA sobre condiciones de salud**: el prompt de `generateDailyPlan` dice explícitamente "nunca asumas ni menciones un diagnóstico específico, solo responde a la energía reportada" — esto es deliberado, ver [06-decisions.md](06-decisions.md) (`bipolaridad` era hardcodeado antes y se generalizó).
 
 Tres funciones exportadas, todas detalladas con su prompt completo en el archivo fuente:
