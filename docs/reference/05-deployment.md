@@ -65,9 +65,9 @@ No hay pipeline de CI/CD ni distribución por tienda. El flujo actual es 100% ma
 
 Ver [06-decisions.md](06-decisions.md) para el diseño completo y su limitación importante (no se puede forzar a quien tiene una versión anterior a la build #1, la que estrenó este mecanismo — solo funciona hacia adelante, entre builds que ya lo incluyen).
 
-**Estado actual (21 de septiembre de 2026):** `MIN_SUPPORTED_BUILD_NUMBER = 1` en el backend, y el APK publicado en el Release de GitHub es exactamente `kAppBuildNumber = 1` (`pubspec.yaml` → `version: 1.0.0+1`). Es la build base: nadie queda bloqueado todavía, y no hay nada que forzar hasta que exista una build #2.
+**Estado actual (21 de septiembre de 2026):** `MIN_SUPPORTED_BUILD_NUMBER = 2` en el backend, y el APK publicado en el Release de GitHub es exactamente `kAppBuildNumber = 2` (`pubspec.yaml` → `version: 1.0.1+2`). Es la primera vez que se usó el mecanismo de verdad: cualquiera que se haya quedado en la build #1 (la que estrenó el mecanismo, sin este forzado activo todavía) ve la pantalla de actualización obligatoria hasta que instale esta build #2.
 
-Pasos para forzar que todos los usuarios (que ya tengan la build #1 o superior) actualicen a una build nueva, la próxima vez que haga falta:
+Pasos para forzar que todos los usuarios (que ya tengan la build actual o superior) actualicen a una build nueva, la próxima vez que haga falta:
 1. **Primero** compilar la build nueva, subir `kAppBuildNumber` (`frontend/lib/core/app_info.dart`) y el `+N` de `version:` en `pubspec.yaml` al mismo número nuevo, y publicar ese `.apk` en el Release de GitHub (reemplazando el asset `jarvis-planeador.apk`, ver [PROYECTO.md](../../PROYECTO.md)).
 2. **Después** subir `MIN_SUPPORTED_BUILD_NUMBER` en `backend/src/api/routes.ts` (endpoint `GET /version`) a ese mismo build number (nunca más alto que la build recién publicada — si no, esa build también queda bloqueada, sin ningún build más nuevo al que mandar a la gente).
 3. Desplegar el backend como siempre (push + "Deploy" en EasyPanel).
