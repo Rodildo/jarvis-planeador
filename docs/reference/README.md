@@ -2,6 +2,8 @@
 
 Esta carpeta es el contexto técnico completo y actualizado de la app, pensado para que una sesión de edición futura (humana o de IA) pueda retomar el proyecto sin tener que releer todo el código desde cero.
 
+**¿Buscas los links del repo, del APK, o las reglas de flujo de trabajo (cuándo hacer push, cuándo recordar el deploy)?** Eso vive en [PROYECTO.md](../../PROYECTO.md), en la raíz del repo — es el punto de entrada rápido. Esta carpeta es el detalle técnico profundo al que ese documento apunta.
+
 **A diferencia de `docs/superpowers/` (specs/planes originales del diseño inicial, del 17 de septiembre de 2026, ya desactualizados en varios puntos) y de `procesos_historial.txt` (bitácora histórica de la Fase 1-2, también desactualizada), estos documentos reflejan el estado ACTUAL del código.** Si algo aquí contradice esos archivos viejos, este documento tiene razón — esos son historia, no verdad vigente.
 
 ## Índice

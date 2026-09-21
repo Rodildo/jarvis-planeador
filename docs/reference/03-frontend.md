@@ -72,10 +72,11 @@ Puntos clave:
 
 Estado: `plan` (`{greeting, morning, midday, night}`), `completed` (`Map<String, bool>`, claves `'ai-<block>-<index>'` o el id propio de una tarea manual con prefijo `'manual-'`), `manualTasks`, `dayStarted`, `showMiddayInput`.
 
-- `_hydrateToday()`: al construirse, pide `/daily-log/<hoy>` y si `actions_chosen` ya tiene un plan guardado, restaura el estado completo (así cerrar y abrir la app no reinicia el día).
-- Cada cambio (marcar tarea, agregar/quitar tarea manual) llama a `_persistState()`, que manda el objeto `{plan, completed, manualTasks}` completo a `/daily-actions` — **no hay merge parcial en el backend**, cada guardado sobreescribe todo.
+- `_hydrateToday()`: al construirse, pide `/daily-log/<hoy>` (con reintentos, ver [06-decisions.md](06-decisions.md)) y si `actions_chosen` ya tiene un plan guardado, restaura el estado completo (así cerrar y abrir la app no reinicia el día). Si la red falla, cae a un respaldo local (`_loadLocalBackup`, mismo patrón que `OnboardingProvider`). Si ni siquiera eso tiene algo que ofrecer, respeta un límite duro antes de volver a pedir energía: máximo 2 veces al día, con al menos 8 horas entre una y otra (`_canShowEnergyPrompt`); si ya se llegó al límite, se muestra un botón de "Reintentar" (`retryHydrate()`) en vez de los botones de energía.
+- Cada cambio (marcar tarea, agregar/quitar tarea manual) llama a `_persistState()`, que manda el objeto `{plan, completed, manualTasks}` completo a `/daily-actions` — **no hay merge parcial en el backend**, cada guardado sobreescribe todo — y además refresca el respaldo local de hoy.
 - Al generar el plan (`requestDailyPlan`), agenda la notificación de mitad de día 6h después.
 - `triggerMiddayCheck()`: si la respuesta de `/midday` trae `plan` (el backend decidió que el cambio de energía ameritaba regenerar `midday`/`night`, ver [06-decisions.md](06-decisions.md)), reemplaza `plan` y `completed` enteros con lo que vino del backend y llama a `_persistState()`. Si no trae `plan` (cambio de energía menor), solo actualiza el mensaje — las tareas del día no cambian.
+- `canRequestMiddayCheck`: el botón manual "Chequeo de energía ahora" solo se muestra si pasaron al menos 6 horas desde el último reporte de energía (`_lastEnergyCheckAt`, persistido en SharedPreferences). Se actualiza tanto al generar el plan matutino como al completar un chequeo de mediodía (ver [06-decisions.md](06-decisions.md)).
 
 ## `core/notification_service.dart` — 3 notificaciones/día
 

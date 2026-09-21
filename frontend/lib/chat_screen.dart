@@ -38,20 +38,24 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildEnergyButton(int level, ChatProvider provider) {
+    final disabled = provider.isLoading;
     return GestureDetector(
-      onTap: () => _selectEnergy(level, provider),
-      child: Container(
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(
-          color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
-          shape: BoxShape.circle,
-          border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.5)),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          level.toString(),
-          style: GoogleFonts.outfit(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold, fontSize: 20),
+      onTap: disabled ? null : () => _selectEnergy(level, provider),
+      child: Opacity(
+        opacity: disabled ? 0.35 : 1.0,
+        child: Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.5)),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            level.toString(),
+            style: GoogleFonts.outfit(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold, fontSize: 20),
+          ),
         ),
       ),
     );
@@ -281,8 +285,10 @@ class _ChatScreenState extends State<ChatScreen> {
               else
                 const Spacer(),
 
-              // Chequeo de energía a mitad de día
-              if (provider.dayStarted && !provider.showMiddayInput)
+              // Chequeo de energía a mitad de día — solo disponible cada 6
+              // horas como mínimo desde el último reporte (ver
+              // canRequestMiddayCheck), para no invitar a pedirlo de más.
+              if (provider.dayStarted && !provider.showMiddayInput && provider.canRequestMiddayCheck)
                 Padding(
                   padding: const EdgeInsets.all(20.0),
                   child: ElevatedButton(
@@ -299,8 +305,28 @@ class _ChatScreenState extends State<ChatScreen> {
                   ).animate().fadeIn().moveY(begin: 10, end: 0),
                 ),
 
+              // Límite duro alcanzado (ver energyPromptGateBlocked en el
+              // provider): en vez de los botones de energía, se ofrece
+              // reintentar la conexión en vez de arriesgar generar un plan
+              // de más.
+              if (provider.plan == null && provider.energyPromptGateBlocked && !provider.showMiddayInput)
+                Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: ElevatedButton(
+                    onPressed: provider.isLoading ? null : provider.retryHydrate,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00E5FF).withValues(alpha: 0.15),
+                      foregroundColor: const Color(0xFF00E5FF),
+                      minimumSize: const Size(double.infinity, 55),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 0,
+                    ),
+                    child: Text('Reintentar', style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
+                  ).animate().fadeIn().moveY(begin: 10, end: 0),
+                ),
+
               // Input Area (Glassmorphic) - selector de energía 1 a 5
-              if (provider.plan == null || provider.showMiddayInput)
+              if ((provider.plan == null && !provider.energyPromptGateBlocked) || provider.showMiddayInput)
                 ClipRRect(
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),

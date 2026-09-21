@@ -234,16 +234,26 @@ class ApiService {
     throw Exception(data['error'] ?? 'No se pudo eliminar tu cuenta.');
   }
 
+  /// Se llama justo al abrir la app (antes de que la conexión termine de
+  /// "despertar" tras un arranque en frío), así que un solo intento fallido
+  /// aquí no debe bastar para asumir que no hay plan guardado hoy — eso
+  /// mandaría al usuario a pedir energía de nuevo y, si la responde,
+  /// generaría un plan nuevo que pisa el de verdad. Reintenta un par de
+  /// veces antes de rendirse.
   Future<Map<String, dynamic>?> getTodayLog() async {
-    try {
-      final date = DateTime.now().toIso8601String().split('T')[0];
-      final response = await http.get(Uri.parse('$baseUrl/daily-log/$date'), headers: _headers);
-      _reportIfUnauthorized(response);
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body)['dailyLog'];
+    final date = DateTime.now().toIso8601String().split('T')[0];
+    for (int attempt = 1; attempt <= 3; attempt++) {
+      try {
+        final response = await http.get(Uri.parse('$baseUrl/daily-log/$date'), headers: _headers);
+        _reportIfUnauthorized(response);
+        if (response.statusCode == 200) {
+          return jsonDecode(response.body)['dailyLog'];
+        }
+        return null;
+      } catch (e) {
+        print('Get today log error (intento $attempt): $e');
+        if (attempt < 3) await Future.delayed(const Duration(milliseconds: 800));
       }
-    } catch (e) {
-      print('Get today log error: $e');
     }
     return null;
   }
