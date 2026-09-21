@@ -79,15 +79,18 @@ class ApiService {
       };
 
   /// Extrae el mensaje de error del backend si viene en formato legible
-  /// (ej. límites de solicitudes, validaciones), y si no, usa uno genérico
-  /// en vez de mostrarle al usuario el cuerpo crudo de la respuesta.
+  /// (ej. límites de solicitudes, validaciones). Si no (por ejemplo, un
+  /// timeout del proxy que devuelve una página HTML de error en vez de
+  /// JSON — el caso típico tras un rato de inactividad del servidor),
+  /// usa el mensaje genérico pero le agrega el código HTTP real, para
+  /// que quede algo diagnosticable en vez de un mensaje mudo.
   String _friendlyError(http.Response response, String fallback) {
     try {
       final data = jsonDecode(response.body);
       final error = data['error'];
       if (error is String && error.isNotEmpty) return error;
     } catch (_) {}
-    return fallback;
+    return '$fallback (código ${response.statusCode})';
   }
 
   void _reportIfUnauthorized(http.Response response) {
