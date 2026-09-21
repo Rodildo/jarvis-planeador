@@ -37,10 +37,16 @@ class ChatProvider extends ChangeNotifier {
     isLoading = true;
     notifyListeners();
 
+    Map<String, dynamic>? log;
     try {
-      final log = await _api.getTodayLog();
-      final raw = log?['actions_chosen'];
-      if (raw != null) {
+      log = await _api.getTodayLog();
+    } catch (_) {
+      log = null;
+    }
+
+    final raw = log?['actions_chosen'];
+    if (raw != null) {
+      try {
         final state = jsonDecode(raw) as Map<String, dynamic>;
         final restoredPlan = state['plan'] as Map<String, dynamic>?;
         if (restoredPlan != null) {
@@ -51,14 +57,31 @@ class ChatProvider extends ChangeNotifier {
           );
           dayStarted = true;
           jarvisMessage = restoredPlan['greeting']?.toString() ?? 'Aquí está tu plan de hoy.';
+          isLoading = false;
+          notifyListeners();
+          return;
         }
+      } catch (_) {
+        // Estado guardado corrupto: seguimos abajo como si no hubiera nada.
       }
-    } catch (e) {
-      // Si falla la hidratación simplemente arrancamos el flujo normal.
-    } finally {
-      isLoading = false;
-      notifyListeners();
     }
+
+    // El backend guarda tu energía matutina ANTES de generar el plan, así
+    // que si la generación falló a mitad de camino (ej. la IA no
+    // respondió bien) puede que ya hayas reportado tu energía hoy aunque
+    // nunca se haya guardado un plan. En vez de volver a preguntarte,
+    // reintentamos solos con esa misma energía.
+    final morningEnergy = log?['energy_morning'];
+    final energyLevel = morningEnergy is int ? morningEnergy : int.tryParse('$morningEnergy');
+    if (energyLevel != null && energyLevel >= 1 && energyLevel <= 5) {
+      jarvisMessage = 'Ya tengo tu energía de hoy (nivel $energyLevel) — termino de armar tu plan...';
+      notifyListeners();
+      await _generatePlan(energyLevel);
+      return;
+    }
+
+    isLoading = false;
+    notifyListeners();
   }
 
   int? _parseEnergyLevel(String textInput) {
@@ -79,8 +102,14 @@ class ChatProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    await _generatePlan(energyLevel);
+  }
 
+  Future<void> _generatePlan(int energyLevel) async {
     isLoading = true;
+    // Limpia cualquier mensaje de error de un intento anterior, para que
+    // no se vea el error viejo superpuesto con el spinner del intento nuevo.
+    jarvisMessage = 'Generando tu plan del día...';
     notifyListeners();
 
     try {
