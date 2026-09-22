@@ -40,6 +40,24 @@ class ApiService {
   /// Data URI (data:image/jpeg;base64,...) o null si no hay foto de perfil.
   static String? get avatar => _avatar;
 
+  // Ninguna llamada de red de este archivo tenía timeout explícito: sin
+  // esto, un `http.get`/`post` puede quedarse esperando el default del
+  // sistema operativo (mucho más largo que unos segundos, sobre todo justo
+  // después de un rato con la app cerrada y la conexión "dormida") en vez
+  // de fallar rápido y dejar que la lógica de reintentos de cada método
+  // haga su trabajo. `_defaultTimeout` cubre los endpoints normales
+  // (lectura/escritura simple contra la base de datos, deberían responder
+  // casi al instante); `_aiTimeout` es más generoso para los 3 endpoints
+  // que le pegan a la IA (OpenRouter), que legítimamente pueden tardar
+  // más — sobre todo si el backend necesita reintentar una generación con
+  // JSON truncado (ver backend/src/ai/gemini.ts).
+  static const Duration _defaultTimeout = Duration(seconds: 12);
+  static const Duration _uploadTimeout = Duration(seconds: 30);
+  static const Duration _aiTimeout = Duration(seconds: 90);
+
+  static Never _timeoutError() =>
+      throw Exception('Se agotó el tiempo de espera. Revisa tu conexión e intenta de nuevo.');
+
   static Future<void> loadStoredToken() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString(_tokenPrefsKey);
@@ -109,7 +127,7 @@ class ApiService {
   /// versión de verdad desactualizada.
   Future<Map<String, dynamic>?> getVersionInfo() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/version'));
+      final response = await http.get(Uri.parse('$baseUrl/version')).timeout(_defaultTimeout, onTimeout: _timeoutError);
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
@@ -124,7 +142,7 @@ class ApiService {
       Uri.parse('$baseUrl/auth/register'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'password': password, 'firstName': firstName, 'lastName': lastName}),
-    );
+    ).timeout(_defaultTimeout, onTimeout: _timeoutError);
     final data = jsonDecode(response.body);
     if (response.statusCode == 201 && data['token'] != null) {
       await _setSession(data['token'], data['firstName'] ?? firstName, data['lastName'] ?? lastName);
@@ -138,7 +156,7 @@ class ApiService {
       Uri.parse('$baseUrl/auth/login'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'password': password}),
-    );
+    ).timeout(_defaultTimeout, onTimeout: _timeoutError);
     final data = jsonDecode(response.body);
     if (response.statusCode == 200 && data['token'] != null) {
       await _setSession(data['token'], data['firstName'] ?? '', data['lastName'] ?? '');
@@ -149,7 +167,7 @@ class ApiService {
 
   Future<bool> checkProfile() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/profile'), headers: _headers);
+      final response = await http.get(Uri.parse('$baseUrl/profile'), headers: _headers).timeout(_defaultTimeout, onTimeout: _timeoutError);
       _reportIfUnauthorized(response);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -179,7 +197,7 @@ class ApiService {
       Uri.parse('$baseUrl/profile'),
       headers: _headers,
       body: jsonEncode({'firstName': firstName, 'lastName': lastName}),
-    );
+    ).timeout(_defaultTimeout, onTimeout: _timeoutError);
     _reportIfUnauthorized(response);
     final data = jsonDecode(response.body);
     if (response.statusCode == 200) {
@@ -201,7 +219,7 @@ class ApiService {
       Uri.parse('$baseUrl/profile/avatar'),
       headers: _headers,
       body: jsonEncode({'avatar': dataUri}),
-    );
+    ).timeout(_uploadTimeout, onTimeout: _timeoutError);
     _reportIfUnauthorized(response);
     if (response.statusCode == 200) {
       _avatar = dataUri;
@@ -213,7 +231,7 @@ class ApiService {
   }
 
   Future<void> removeAvatar() async {
-    final response = await http.delete(Uri.parse('$baseUrl/profile/avatar'), headers: _headers);
+    final response = await http.delete(Uri.parse('$baseUrl/profile/avatar'), headers: _headers).timeout(_defaultTimeout, onTimeout: _timeoutError);
     _reportIfUnauthorized(response);
     if (response.statusCode == 200) {
       _avatar = null;
@@ -229,7 +247,7 @@ class ApiService {
       Uri.parse('$baseUrl/auth/change-password'),
       headers: _headers,
       body: jsonEncode({'currentPassword': currentPassword, 'newPassword': newPassword}),
-    );
+    ).timeout(_defaultTimeout, onTimeout: _timeoutError);
     _reportIfUnauthorized(response);
     if (response.statusCode == 200) return;
     final data = jsonDecode(response.body);
@@ -245,7 +263,7 @@ class ApiService {
       Uri.parse('$baseUrl/auth/verify-password'),
       headers: _headers,
       body: jsonEncode({'password': password}),
-    );
+    ).timeout(_defaultTimeout, onTimeout: _timeoutError);
     _reportIfUnauthorized(response);
     if (response.statusCode == 200) return;
     final data = jsonDecode(response.body);
@@ -259,7 +277,7 @@ class ApiService {
       Uri.parse('$baseUrl/account'),
       headers: _headers,
       body: jsonEncode({'password': password}),
-    );
+    ).timeout(_defaultTimeout, onTimeout: _timeoutError);
     if (response.statusCode == 200) {
       await logout();
       return;
@@ -278,7 +296,7 @@ class ApiService {
     final date = DateTime.now().toIso8601String().split('T')[0];
     for (int attempt = 1; attempt <= 3; attempt++) {
       try {
-        final response = await http.get(Uri.parse('$baseUrl/daily-log/$date'), headers: _headers);
+        final response = await http.get(Uri.parse('$baseUrl/daily-log/$date'), headers: _headers).timeout(_defaultTimeout, onTimeout: _timeoutError);
         _reportIfUnauthorized(response);
         if (response.statusCode == 200) {
           return jsonDecode(response.body)['dailyLog'];
@@ -303,7 +321,7 @@ class ApiService {
     if (!forceRefresh && _cachedHistory != null) return _cachedHistory!;
     for (int attempt = 1; attempt <= 3; attempt++) {
       try {
-        final response = await http.get(Uri.parse('$baseUrl/history?days=$days'), headers: _headers);
+        final response = await http.get(Uri.parse('$baseUrl/history?days=$days'), headers: _headers).timeout(_defaultTimeout, onTimeout: _timeoutError);
         _reportIfUnauthorized(response);
         if (response.statusCode == 200) {
           final logs = (jsonDecode(response.body)['logs'] as List).cast<Map<String, dynamic>>();
@@ -332,7 +350,7 @@ class ApiService {
     if (!forceRefresh && _cachedBlueprint != null) return _cachedBlueprint;
     for (int attempt = 1; attempt <= 3; attempt++) {
       try {
-        final response = await http.get(Uri.parse('$baseUrl/blueprint'), headers: _headers);
+        final response = await http.get(Uri.parse('$baseUrl/blueprint'), headers: _headers).timeout(_defaultTimeout, onTimeout: _timeoutError);
         _reportIfUnauthorized(response);
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
@@ -355,7 +373,7 @@ class ApiService {
   /// mensajes vacíos) de "no pudimos saberlo" (para no perder el brief de
   /// un usuario que ya iba avanzado por un simple corte de conexión).
   Future<List<Map<String, String>>> getOnboardingProgress() async {
-    final response = await http.get(Uri.parse('$baseUrl/onboarding/progress'), headers: _headers);
+    final response = await http.get(Uri.parse('$baseUrl/onboarding/progress'), headers: _headers).timeout(_defaultTimeout, onTimeout: _timeoutError);
     _reportIfUnauthorized(response);
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -375,7 +393,7 @@ class ApiService {
         Uri.parse('$baseUrl/onboarding/progress'),
         headers: _headers,
         body: jsonEncode({'messages': messages}),
-      );
+      ).timeout(_defaultTimeout, onTimeout: _timeoutError);
       _reportIfUnauthorized(response);
     } catch (e) {
       print('Save onboarding progress error: $e');
@@ -387,7 +405,7 @@ class ApiService {
       Uri.parse('$baseUrl/assessment'),
       headers: _headers,
       body: jsonEncode({'answers': jsonEncode(messages), 'language': language}),
-    );
+    ).timeout(_aiTimeout, onTimeout: _timeoutError);
     _reportIfUnauthorized(response);
     if (response.statusCode != 200) return false;
 
@@ -413,7 +431,7 @@ class ApiService {
         'energyLevel': energyLevel,
         'language': language,
       }),
-    );
+    ).timeout(_aiTimeout, onTimeout: _timeoutError);
     _reportIfUnauthorized(response);
     if (response.statusCode == 200) {
       return jsonDecode(response.body)['plan'];
@@ -431,7 +449,7 @@ class ApiService {
         'date': DateTime.now().toIso8601String().split('T')[0],
         'actions': state
       }),
-    );
+    ).timeout(_defaultTimeout, onTimeout: _timeoutError);
     _reportIfUnauthorized(response);
     return response.statusCode == 200;
   }
@@ -449,7 +467,7 @@ class ApiService {
         'energyLevel': energyLevel,
         'language': language,
       }),
-    );
+    ).timeout(_aiTimeout, onTimeout: _timeoutError);
     _reportIfUnauthorized(response);
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);

@@ -148,3 +148,14 @@ Se agregó una capa de reintento adicional, más lenta y persistente, en las dos
 - **El timer se cancela en dos lugares**: apenas llegan datos reales, y en `dispose()` — así cerrar la pantalla (navegar a otra pestaña) para el reintento de inmediato, nunca sigue corriendo de fondo.
 
 Es un patrón de dos capas a propósito: la capa rápida (`api_service.dart`, unos pocos segundos) cubre baches cortos de red; la capa lenta y persistente (el `Timer.periodic` en la pantalla) cubre el caso de una desconexión más larga, sin bloquear la UI con reintentos agresivos.
+
+## La causa real de "se queda colgada": ninguna llamada de red tenía timeout
+
+El arreglo anterior (reintento cada 3 segundos) ayudó pero no resolvió el problema de fondo: el usuario siguió reportando que "Mi Plan Maestro" se quedaba colgada o muy lenta para cargar al reabrir la app después de un rato. Revisando `api_service.dart` a fondo: **ninguna de las 19 llamadas HTTP del archivo tenía un `.timeout(...)` explícito** — sin eso, `http.get`/`post`/etc. esperan lo que tarde el sistema operativo en darse por vencido, que puede ser mucho más que unos segundos (sobre todo justo después de que el dispositivo estuvo con la red "dormida" un rato, reconectar puede tardar bastante antes de fallar o tener éxito). Esto significa que cada uno de los 3 intentos "rápidos" de `getLifeBlueprint()`/`getHistory()`/`getTodayLog()` podía por sí solo tardar muchísimo más de lo pensado — la lógica de reintentos existía, pero cada intento individual podía quedarse pegado en vez de fallar rápido y dejar que el siguiente intento (o el `Timer.periodic` de la pantalla) hiciera su trabajo.
+
+Se agregó `.timeout(...)` a las 19 llamadas de `api_service.dart`, con tres duraciones según el tipo de endpoint:
+- `_defaultTimeout` (12s): la mayoría — lectura/escritura simple contra la base de datos, debería responder casi al instante en cualquier conexión funcional.
+- `_uploadTimeout` (30s): solo `uploadAvatar` — sube hasta ~750KB en base64, más margen que un endpoint de solo texto.
+- `_aiTimeout` (90s): los 3 endpoints que le pegan a OpenRouter (`submitAssessment`, `getDailyPlan`, `triggerMiddayCheck`) — el backend mismo puede reintentar una generación con JSON truncado (ver `callOpenRouterAndParseJson` en `gemini.ts`), así que legítimamente pueden tardar más que un endpoint normal.
+
+Al vencerse el timeout, se lanza una `Exception` con un mensaje genérico en español (`_timeoutError()`) en vez de dejar que se propague la `TimeoutException` cruda de Dart (que produce un texto técnico feo tipo "TimeoutException after 0:00:12.000000..."). Con esto, cada intento dentro de un reintento (`getTodayLog`, `getHistory`, `getLifeBlueprint`) ahora falla en como mucho `_defaultTimeout`, y el chequeo de versión al arrancar la app (`main.dart` → `getVersionInfo()`) también queda acotado — antes esa llamada sin timeout podía retrasar el arranque completo de la app, no solo la pantalla de Blueprint.
