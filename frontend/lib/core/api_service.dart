@@ -12,6 +12,8 @@ class ApiService {
   static const String _firstNamePrefsKey = 'user_first_name';
   static const String _lastNamePrefsKey = 'user_last_name';
   static const String _avatarPrefsKey = 'user_avatar';
+  static const String _blueprintDiskCacheKey = 'local_blueprint_cache';
+  static const String _historyDiskCacheKey = 'local_history_cache';
 
   static String? _token;
   static String? _firstName;
@@ -89,6 +91,56 @@ class ApiService {
     await prefs.remove(_lastNamePrefsKey);
     await prefs.remove(_avatarPrefsKey);
     await prefs.remove('has_blueprint');
+    // Caché en disco de blueprint/historial: es de esta cuenta, no del
+    // dispositivo — si otra persona inicia sesión en el mismo teléfono no
+    // debe ver los datos de la cuenta anterior.
+    await prefs.remove(_blueprintDiskCacheKey);
+    await prefs.remove(_historyDiskCacheKey);
+  }
+
+  /// Lee el blueprint guardado en disco (SharedPreferences), sin tocar la
+  /// red — para que "Mi Plan Maestro" muestre algo al instante en cada
+  /// apertura en vez de esperar un viaje de red que, con el backend
+  /// inestable, puede tardar casi un minuto o directamente no resolver.
+  /// El blueprint solo se reemplaza cuando el usuario termina un re-brief
+  /// (ver `_persistBlueprintDiskCache`, llamado desde `submitAssessment` y
+  /// desde una carga de red exitosa) — nunca se refresca solo por abrir la
+  /// pantalla.
+  Future<Map<String, dynamic>?> getCachedBlueprintFromDisk() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_blueprintDiskCacheKey);
+    if (raw == null) return null;
+    try {
+      return jsonDecode(raw) as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _persistBlueprintDiskCache(Map<String, dynamic> result) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_blueprintDiskCacheKey, jsonEncode(result));
+  }
+
+  /// Lee el historial guardado en disco, sin tocar la red — mismo motivo
+  /// que `getCachedBlueprintFromDisk`. A diferencia del blueprint, el
+  /// historial sí cambia día a día, así que `history_screen.dart` muestra
+  /// esta copia al instante y además dispara una actualización en segundo
+  /// plano (ver `getHistory`).
+  Future<List<Map<String, dynamic>>> getCachedHistoryFromDisk() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_historyDiskCacheKey);
+    if (raw == null) return [];
+    try {
+      return (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> _persistHistoryDiskCache(List<Map<String, dynamic>> logs) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_historyDiskCacheKey, jsonEncode(logs));
   }
 
   Map<String, String> get _headers => {
@@ -352,6 +404,9 @@ class ApiService {
       if (response.statusCode == 200) {
         final logs = (jsonDecode(response.body)['logs'] as List).cast<Map<String, dynamic>>();
         _cachedHistory = logs;
+        // No await: no tiene sentido bloquear la respuesta a quien está
+        // esperando el historial solo para terminar de escribir en disco.
+        _persistHistoryDiskCache(logs);
         return logs;
       }
     } catch (e) {
@@ -399,6 +454,7 @@ class ApiService {
         final data = jsonDecode(response.body);
         final result = {'blueprint': data['blueprint'], 'updatedAt': data['updatedAt']};
         _cachedBlueprint = result;
+        _persistBlueprintDiskCache(result);
         return result;
       }
     } catch (e) {
@@ -456,7 +512,12 @@ class ApiService {
     final blueprint = jsonDecode(response.body)['blueprint'];
     if (blueprint != null) {
       final now = DateTime.now().toUtc().toIso8601String().split('.').first.replaceFirst('T', ' ');
-      _cachedBlueprint = {'blueprint': blueprint, 'updatedAt': now};
+      final result = {'blueprint': blueprint, 'updatedAt': now};
+      _cachedBlueprint = result;
+      // Este es el único momento en que el plan maestro cambia de verdad
+      // (el usuario terminó un re-brief): aquí sí se reemplaza la copia
+      // en disco. blueprint_screen.dart nunca la pisa solo por abrirse.
+      await _persistBlueprintDiskCache(result);
     }
     return true;
   }

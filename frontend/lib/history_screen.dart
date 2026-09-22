@@ -25,7 +25,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _loadFromDiskThenRefresh();
   }
 
   @override
@@ -34,21 +34,41 @@ class _HistoryScreenState extends State<HistoryScreen> {
     super.dispose();
   }
 
+  // A diferencia del blueprint, el historial sí cambia día a día (cada
+  // chequeo de energía agrega un registro), así que no basta con mostrar
+  // la copia en disco y quedarse ahí: se muestra esa copia al instante
+  // (sin spinner, con el backend a veces inestable no hay por qué esperar
+  // para ver lo que ya se tenía) y de inmediato se dispara una
+  // actualización silenciosa en segundo plano.
+  Future<void> _loadFromDiskThenRefresh() async {
+    final cached = await _api.getCachedHistoryFromDisk();
+    if (cached.isNotEmpty && mounted) {
+      setState(() {
+        _logs = cached;
+        _isLoading = false;
+      });
+    }
+    await _refreshFromNetwork();
+  }
+
   // getHistory ya reintenta solo ante fallas de red (ver api_service.dart,
   // ~2.4s en total), pero eso puede no bastar tras un rato largo con la
   // app cerrada. Como esta pantalla nunca muestra "no hay registros"
-  // (pedido explícito del usuario), en vez de quedarse pegada en el
-  // spinner para siempre, se reintenta cada 3 segundos hasta que aparezca
-  // algo. `_isFetching` evita llamadas superpuestas si un intento tarda
-  // más de 3 segundos, y el timer se cancela apenas hay datos o la
-  // pantalla se cierra — así nunca queda un bucle suelto.
-  Future<void> _load() async {
+  // (pedido explícito del usuario), si todavía no hay NADA que mostrar
+  // (ni copia en disco ni respuesta de red) se reintenta cada 3 segundos
+  // hasta que aparezca algo. `_isFetching` evita llamadas superpuestas si
+  // un intento tarda más de 3 segundos, y el timer se cancela apenas hay
+  // datos frescos o la pantalla se cierra — así nunca queda un bucle
+  // suelto. Si ya había copia en disco, esto solo actualiza en silencio;
+  // no hay timer de reintento porque no hace falta insistir por algo que
+  // el usuario ya está viendo.
+  Future<void> _refreshFromNetwork() async {
     if (_isFetching) return;
     _isFetching = true;
     try {
       // Un año completo: mientras más historial, más confiable el patrón
       // por día de la semana que alimenta la predicción de mañana.
-      final logs = await _api.getHistory(days: 365);
+      final logs = await _api.getHistory(days: 365, forceRefresh: true);
       if (!mounted) return;
       if (logs.isNotEmpty) {
         _retryTimer?.cancel();
@@ -58,7 +78,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
         });
         return;
       }
-      _retryTimer ??= Timer.periodic(const Duration(seconds: 3), (_) => _load());
+      if (_logs.isEmpty) {
+        _retryTimer ??= Timer.periodic(const Duration(seconds: 3), (_) => _refreshFromNetwork());
+      }
     } finally {
       _isFetching = false;
     }

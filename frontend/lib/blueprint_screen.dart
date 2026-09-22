@@ -52,16 +52,34 @@ class _BlueprintScreenState extends State<BlueprintScreen> {
     super.dispose();
   }
 
-  // getLifeBlueprint ya reintenta solo ante fallas de red (ver
-  // api_service.dart, ~2.4s en total), pero eso puede no bastar tras un
-  // rato largo con la app cerrada (la conexión tarda más en "despertar").
-  // Como esta pantalla nunca muestra un mensaje de error/vacío (pedido
-  // explícito del usuario), en vez de quedarse pegada en el spinner para
-  // siempre, se reintenta cada 3 segundos hasta que aparezcan los datos.
-  // `_isFetching` evita que dos llamadas queden corriendo a la vez si un
-  // intento tarda más de 3 segundos, y el timer se cancela apenas hay
-  // éxito o la pantalla se cierra — así nunca queda un bucle suelto.
+  void _applyBlueprint(Map<String, dynamic> data) {
+    _blueprint = data['blueprint'];
+    final rawUpdatedAt = data['updatedAt'];
+    _updatedAt = rawUpdatedAt != null ? DateTime.tryParse('${rawUpdatedAt}Z') : null;
+    _isLoading = false;
+  }
+
+  // El plan maestro solo cambia cuando el usuario termina un re-brief (ver
+  // ApiService.submitAssessment, que es quien reemplaza la copia en
+  // disco) — nunca por el solo hecho de abrir esta pantalla. Por eso se
+  // muestra directo la copia guardada en disco (SharedPreferences), sin
+  // tocar la red: con el backend a veces inestable, esperar un viaje de
+  // red de por sí ya no es confiable, y esperarlo para mostrar algo que
+  // de todas formas no iba a cambiar no tiene sentido.
+  //
+  // Solo si NUNCA hubo nada guardado (primera vez del usuario en este
+  // dispositivo) hace falta ir a la red — ahí sí, con reintento cada 3
+  // segundos (ver docs/reference/06-decisions.md) porque no queda otra.
   Future<void> _loadBlueprint() async {
+    final cached = await _api.getCachedBlueprintFromDisk();
+    if (cached != null && mounted) {
+      setState(() => _applyBlueprint(cached));
+      return;
+    }
+    await _fetchFromNetwork();
+  }
+
+  Future<void> _fetchFromNetwork() async {
     if (_isFetching) return;
     _isFetching = true;
     try {
@@ -69,15 +87,10 @@ class _BlueprintScreenState extends State<BlueprintScreen> {
       if (!mounted) return;
       if (data?['blueprint'] != null) {
         _retryTimer?.cancel();
-        setState(() {
-          _blueprint = data!['blueprint'];
-          final rawUpdatedAt = data['updatedAt'];
-          _updatedAt = rawUpdatedAt != null ? DateTime.tryParse('${rawUpdatedAt}Z') : null;
-          _isLoading = false;
-        });
+        setState(() => _applyBlueprint(data!));
         return;
       }
-      _retryTimer ??= Timer.periodic(const Duration(seconds: 3), (_) => _loadBlueprint());
+      _retryTimer ??= Timer.periodic(const Duration(seconds: 3), (_) => _fetchFromNetwork());
     } finally {
       _isFetching = false;
     }
