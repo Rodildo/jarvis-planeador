@@ -12,14 +12,21 @@ class ApiService {
   static const String _firstNamePrefsKey = 'user_first_name';
   static const String _lastNamePrefsKey = 'user_last_name';
   static const String _avatarPrefsKey = 'user_avatar';
-  static const String _blueprintDiskCacheKey = 'local_blueprint_cache';
-  static const String _historyDiskCacheKey = 'local_history_cache';
-  static const String _notesPrefsKey = 'local_notes';
+  static const String _blueprintDiskCacheKeyBase = 'local_blueprint_cache';
+  static const String _historyDiskCacheKeyBase = 'local_history_cache';
+  static const String _notesPrefsKeyBase = 'local_notes';
 
   static String? _token;
   static String? _firstName;
   static String? _lastName;
   static String? _avatar;
+  // Id de cuenta (claim `userId` del JWT), usado para que el caché local de
+  // blueprint/historial/notas sea por cuenta y no por dispositivo — si dos
+  // cuentas comparten un teléfono, cada una lee su propia copia en vez de
+  // la de la última sesión. No hace falta verificar la firma del token para
+  // esto (no es un chequeo de seguridad, el backend ya valida eso en cada
+  // llamada): solo se lee el payload para tener una llave estable.
+  static String? _accountId;
 
   // Caché en memoria (dura lo que dura la sesión de la app, se limpia en
   // logout). El blueprint casi no cambia (solo en un re-brief mensual) y
@@ -61,18 +68,57 @@ class ApiService {
   static Never _timeoutError() =>
       throw Exception('Se agotó el tiempo de espera. Revisa tu conexión e intenta de nuevo.');
 
+  /// Lee el claim `userId` del payload del JWT (sin verificar firma, eso ya
+  /// lo hace el backend) — solo para tener una llave estable de caché local
+  /// por cuenta. Si el token no tiene el formato esperado, devuelve null y
+  /// el caché cae a una llave genérica compartida (mismo comportamiento de
+  /// antes de este cambio, para no romper nada si algo sale mal acá).
+  static String? _decodeAccountId(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return null;
+      final payload = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+      final data = jsonDecode(payload) as Map<String, dynamic>;
+      return data['userId']?.toString();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String _scopedKey(String base) => '${base}_${_accountId ?? 'anon'}';
+
   static Future<void> loadStoredToken() async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString(_tokenPrefsKey);
     _firstName = prefs.getString(_firstNamePrefsKey);
     _lastName = prefs.getString(_lastNamePrefsKey);
     _avatar = prefs.getString(_avatarPrefsKey);
+    if (_token != null) {
+      _accountId = _decodeAccountId(_token!);
+      await _migrateLegacyCacheKeys(prefs);
+    }
+  }
+
+  /// Antes de este cambio, el caché de blueprint/historial/notas vivía bajo
+  /// una llave fija por dispositivo (sin id de cuenta). Para que quien ya
+  /// tenía datos ahí — sobre todo notas, que no existen en el backend y se
+  /// perderían de vista si simplemente se cambiara de llave — no las pierda
+  /// al actualizar, se migran una sola vez a la llave nueva ya con el id de
+  /// cuenta resuelto.
+  static Future<void> _migrateLegacyCacheKeys(SharedPreferences prefs) async {
+    for (final base in [_blueprintDiskCacheKeyBase, _historyDiskCacheKeyBase, _notesPrefsKeyBase]) {
+      final legacy = prefs.getString(base);
+      if (legacy == null) continue;
+      await prefs.setString(_scopedKey(base), legacy);
+      await prefs.remove(base);
+    }
   }
 
   static Future<void> _setSession(String token, String firstName, String lastName) async {
     _token = token;
     _firstName = firstName;
     _lastName = lastName;
+    _accountId = _decodeAccountId(token);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenPrefsKey, token);
     await prefs.setString(_firstNamePrefsKey, firstName);
@@ -80,24 +126,26 @@ class ApiService {
   }
 
   Future<void> logout() async {
-    ApiService._token = null;
-    ApiService._firstName = null;
-    ApiService._lastName = null;
-    ApiService._avatar = null;
-    ApiService._cachedBlueprint = null;
-    ApiService._cachedHistory = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenPrefsKey);
     await prefs.remove(_firstNamePrefsKey);
     await prefs.remove(_lastNamePrefsKey);
     await prefs.remove(_avatarPrefsKey);
     await prefs.remove('has_blueprint');
-    // Caché en disco de blueprint/historial: es de esta cuenta, no del
+    // Caché en disco de blueprint/historial/notas: es de esta cuenta, no del
     // dispositivo — si otra persona inicia sesión en el mismo teléfono no
-    // debe ver los datos de la cuenta anterior.
-    await prefs.remove(_blueprintDiskCacheKey);
-    await prefs.remove(_historyDiskCacheKey);
-    await prefs.remove(_notesPrefsKey);
+    // debe ver los datos de la cuenta anterior. Se borra usando la llave de
+    // la cuenta que se está cerrando (antes de limpiar _accountId abajo).
+    await prefs.remove(_scopedKey(_blueprintDiskCacheKeyBase));
+    await prefs.remove(_scopedKey(_historyDiskCacheKeyBase));
+    await prefs.remove(_scopedKey(_notesPrefsKeyBase));
+    ApiService._token = null;
+    ApiService._firstName = null;
+    ApiService._lastName = null;
+    ApiService._avatar = null;
+    ApiService._accountId = null;
+    ApiService._cachedBlueprint = null;
+    ApiService._cachedHistory = null;
   }
 
   /// Lee el blueprint guardado en disco (SharedPreferences), sin tocar la
@@ -110,7 +158,7 @@ class ApiService {
   /// pantalla.
   Future<Map<String, dynamic>?> getCachedBlueprintFromDisk() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_blueprintDiskCacheKey);
+    final raw = prefs.getString(_scopedKey(_blueprintDiskCacheKeyBase));
     if (raw == null) return null;
     try {
       return jsonDecode(raw) as Map<String, dynamic>;
@@ -121,7 +169,7 @@ class ApiService {
 
   Future<void> _persistBlueprintDiskCache(Map<String, dynamic> result) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_blueprintDiskCacheKey, jsonEncode(result));
+    await prefs.setString(_scopedKey(_blueprintDiskCacheKeyBase), jsonEncode(result));
   }
 
   /// Lee el historial guardado en disco, sin tocar la red — mismo motivo
@@ -131,7 +179,7 @@ class ApiService {
   /// plano (ver `getHistory`).
   Future<List<Map<String, dynamic>>> getCachedHistoryFromDisk() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_historyDiskCacheKey);
+    final raw = prefs.getString(_scopedKey(_historyDiskCacheKeyBase));
     if (raw == null) return [];
     try {
       return (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
@@ -142,7 +190,7 @@ class ApiService {
 
   Future<void> _persistHistoryDiskCache(List<Map<String, dynamic>> logs) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_historyDiskCacheKey, jsonEncode(logs));
+    await prefs.setString(_scopedKey(_historyDiskCacheKeyBase), jsonEncode(logs));
   }
 
   /// Notas de texto libre: a diferencia del blueprint/historial esto no es
@@ -151,7 +199,7 @@ class ApiService {
   /// del usuario para sí mismo), así que viven 100% en este dispositivo.
   Future<List<Map<String, dynamic>>> getNotes() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_notesPrefsKey);
+    final raw = prefs.getString(_scopedKey(_notesPrefsKeyBase));
     if (raw == null) return [];
     try {
       return (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
@@ -162,7 +210,7 @@ class ApiService {
 
   Future<void> saveNotes(List<Map<String, dynamic>> notes) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_notesPrefsKey, jsonEncode(notes));
+    await prefs.setString(_scopedKey(_notesPrefsKeyBase), jsonEncode(notes));
   }
 
   Map<String, String> get _headers => {
