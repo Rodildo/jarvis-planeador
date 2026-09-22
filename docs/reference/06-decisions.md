@@ -192,3 +192,31 @@ Esto confirma que el problema real es de infraestructura, no de código: el cont
 - **Se limpia en `logout()`**: es una caché de la cuenta, no del dispositivo — si otra persona inicia sesión en el mismo teléfono no debe heredar los datos de la cuenta anterior.
 
 Con esto, aunque el backend siga inestable, el usuario ve su plan maestro y su historial de inmediato en cada apertura de la app (excepto la primerísima vez, antes de que exista cualquier copia local) — el problema de fondo (el backend cayéndose) sigue sin resolverse, pero deja de bloquear la experiencia de la app mientras se investiga y arregla del lado de EasyPanel.
+
+## Causa real del backend inestable: contenedores Docker huérfanos peleando por la misma ruta de Traefik
+
+Continuación de la entrada anterior. Con la caché local ya mitigando el síntoma en la app, se siguió investigando la causa de fondo — resuelta el mismo día (22 de septiembre de 2026).
+
+**Descartado por evidencia, no por suposición:**
+- **¿Cronjob o tarea programada en el código?** No. Se revisó todo `backend/src` a fondo: sin librerías de cron en `package.json`, sin ningún `setInterval` en el código. El único `setTimeout` que existe es la espera de 1.5s dentro del reintento de `callOpenRouter` (`ai/gemini.ts`), que solo corre durante una petición real, nunca en segundo plano por su cuenta.
+- **¿Un bug de la aplicación (lógica, base de datos)?** No. En todas las pruebas, el backend nunca devolvió un 500 — solo `200` (bien) o `404 Cannot GET` (ruta no encontrada). Un 404 así ocurre en la capa de enrutamiento de Express, **antes** de que el código de negocio se ejecute; un bug de lógica/base de datos habría producido 500, no "ruta no encontrada".
+- **¿Múltiples procesos peleando dentro del mismo contenedor?** No. `ps aux` dentro del contenedor de la app mostró un único proceso Node (PID 1), estable, sin reiniciarse.
+
+**La causa real, encontrada con acceso a la consola del VPS (Hostinger, no solo la consola del contenedor en EasyPanel) vía `docker ps -a`:** además del contenedor legítimo (`app_jarvisplanner`, el que EasyPanel reconstruye y reinicia en cada `git push`), había **tres contenedores huérfanos** corriendo desde hacía 4 días — `jarvis-manual`, `jarvis-manual-backend`, y `jarvis-manual.1.f7gf6o64mlrmdzj4tvwpt21yr` — con la imagen `backend_backend:latest`, el patrón de nombre exacto que genera `docker-compose up` al correrlo a mano dentro de la carpeta `backend/` de este proyecto. Eran sobras de una prueba manual en el VPS, de algún punto anterior de la vida del proyecto, que nunca se limpiaron.
+
+`docker inspect jarvis-manual --format '{{json .Config.Labels}}'` confirmó la causa exacta:
+```json
+{
+  "traefik.docker.network": "easypanel",
+  "traefik.enable": "true",
+  "traefik.http.routers.jarvis-manual.rule": "Host(`app-jarvisplanner.hzedxy.easypanel.host`) && PathPrefix(`/api`)",
+  "traefik.http.routers.jarvis-manual.tls": "true",
+  "traefik.http.routers.jarvis-manual.tls.certresolver": "letsencrypt",
+  "traefik.http.services.jarvis-manual.loadbalancer.server.port": "80"
+}
+```
+Ese contenedor viejo tenía una regla de Traefik para **exactamente el mismo `Host` y `PathPrefix`** que el contenedor real — dos backends distintos (uno actualizado, uno de hace días) compitiendo por el mismo tráfico. Traefik alternaba entre ambos sin ningún patrón predecible desde afuera, lo que explica todo lo observado: a veces código nuevo, a veces código viejo (`minBuildNumber: 1` en vez de `2`), a veces 404 franco (posible confusión interna de Traefik al tener dos definiciones de router en conflicto para la misma regla). Encaja también con por qué un simple restart del servicio en EasyPanel (que solo toca el contenedor `app_jarvisplanner`) no arregló nada — el contenedor huérfano seguía ahí, sin que EasyPanel supiera de su existencia.
+
+**Arreglo:** `docker stop` de los tres contenedores huérfanos, confirmado con 40 peticiones seguidas exitosas en 80 segundos (antes fallaba el 100% del tiempo en rachas de más de un minuto), y luego `docker rm` para no dejarlos ni siquiera detenidos. Nada de esto tocó el contenedor real ni la base de datos.
+
+**Lección para no repetirlo:** si en el futuro se necesita correr `docker-compose up` a mano en el VPS para probar algo (fuera del flujo normal de EasyPanel), hay que acordarse de `docker-compose down` al terminar — y si alguna vez se le agregan labels de Traefik a un contenedor de prueba, hay que usar un `Host`/router name que no choque con el dominio de producción. El síntoma de este bug (rutas públicas fallando de forma intermitente, sirviendo a veces código viejo) es exactamente lo que hay que buscar si algo así vuelve a pasar: `docker ps -a` en el VPS (no solo en la consola del contenedor de EasyPanel) para ver **todos** los contenedores, no solo el que se cree que es el único.
