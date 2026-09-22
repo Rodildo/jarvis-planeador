@@ -67,8 +67,20 @@ const Map<String, String> stringsEs = {
   'drawer.mainChat': 'Chat Principal',
   'drawer.masterPlan': 'Mi Plan Maestro',
   'drawer.history': 'Historial',
+  'drawer.notes': 'Notas',
   'drawer.myAccount': 'Mi Cuenta',
   'drawer.logout': 'Cerrar sesión',
+
+  // notes_screen.dart
+  'notes.title': 'Notas',
+  'notes.banner': 'Esta es una de las partes más importantes de la app: guarda aquí tus notas y pendientes del día a día para no olvidar ninguna tarea.',
+  'notes.emptyState': 'Todavía no tienes notas. Toca + para crear la primera.',
+  'notes.newNote': 'Nueva nota',
+  'notes.editNote': 'Editar nota',
+  'notes.hint': 'Escribe tu nota aquí...',
+  'notes.deleteConfirmTitle': '¿Eliminar esta nota?',
+  'notes.deleteConfirmBody': 'Esta acción no se puede deshacer.',
+  'notes.updatedAt': 'Editado {date}',
 
   // chat_screen.dart
   'chat.block.morning': 'AL LEVANTARTE',

@@ -14,6 +14,7 @@ class ApiService {
   static const String _avatarPrefsKey = 'user_avatar';
   static const String _blueprintDiskCacheKey = 'local_blueprint_cache';
   static const String _historyDiskCacheKey = 'local_history_cache';
+  static const String _notesPrefsKey = 'local_notes';
 
   static String? _token;
   static String? _firstName;
@@ -96,6 +97,7 @@ class ApiService {
     // debe ver los datos de la cuenta anterior.
     await prefs.remove(_blueprintDiskCacheKey);
     await prefs.remove(_historyDiskCacheKey);
+    await prefs.remove(_notesPrefsKey);
   }
 
   /// Lee el blueprint guardado en disco (SharedPreferences), sin tocar la
@@ -141,6 +143,26 @@ class ApiService {
   Future<void> _persistHistoryDiskCache(List<Map<String, dynamic>> logs) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_historyDiskCacheKey, jsonEncode(logs));
+  }
+
+  /// Notas de texto libre: a diferencia del blueprint/historial esto no es
+  /// una caché de algo que también vive en el backend — es el único lugar
+  /// donde existen. No hay endpoint de notas (no hace falta, son solo texto
+  /// del usuario para sí mismo), así que viven 100% en este dispositivo.
+  Future<List<Map<String, dynamic>>> getNotes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_notesPrefsKey);
+    if (raw == null) return [];
+    try {
+      return (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> saveNotes(List<Map<String, dynamic>> notes) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_notesPrefsKey, jsonEncode(notes));
   }
 
   Map<String, String> get _headers => {

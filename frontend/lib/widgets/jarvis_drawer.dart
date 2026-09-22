@@ -89,6 +89,13 @@ class JarvisDrawer extends StatelessWidget {
                 ),
                 _buildDrawerItem(
                   context,
+                  icon: Icons.note_alt_outlined,
+                  title: t('drawer.notes'),
+                  route: '/notes',
+                  isSelected: currentRoute == '/notes',
+                ),
+                _buildDrawerItem(
+                  context,
                   icon: Icons.settings_outlined,
                   title: t('drawer.myAccount'),
                   route: '/account',

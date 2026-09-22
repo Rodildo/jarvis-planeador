@@ -67,8 +67,20 @@ const Map<String, String> stringsEn = {
   'drawer.mainChat': 'Main Chat',
   'drawer.masterPlan': 'My Master Plan',
   'drawer.history': 'History',
+  'drawer.notes': 'Notes',
   'drawer.myAccount': 'My Account',
   'drawer.logout': 'Log out',
+
+  // notes_screen.dart
+  'notes.title': 'Notes',
+  'notes.banner': 'This is one of the most important parts of the app: save your day-to-day notes and to-dos here so you never forget a task.',
+  'notes.emptyState': 'You don\'t have any notes yet. Tap + to create your first one.',
+  'notes.newNote': 'New note',
+  'notes.editNote': 'Edit note',
+  'notes.hint': 'Write your note here...',
+  'notes.deleteConfirmTitle': 'Delete this note?',
+  'notes.deleteConfirmBody': 'This action cannot be undone.',
+  'notes.updatedAt': 'Edited {date}',
 
   // chat_screen.dart
   'chat.block.morning': 'WHEN YOU WAKE UP',
