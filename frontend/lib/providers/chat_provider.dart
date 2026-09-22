@@ -49,12 +49,20 @@ class ChatProvider extends ChangeNotifier {
     // notificación, para no perder el tap si fue un cold start.
     NotificationService.instance.onMiddayTap = showMidday;
     NotificationService.instance.handleAppLaunchFromNotification();
-    _hydrateToday();
-    // Precarga en segundo plano (sin esperar) para que, si el usuario
-    // entra a Historial o a Mi Plan Maestro, ya esté listo en caché en
-    // vez de tener que esperar el viaje de red justo en ese momento.
-    _api.getHistory(days: 365);
-    _api.getLifeBlueprint();
+    _hydrateToday().then((_) {
+      // Precarga en segundo plano (sin esperar) para que, si el usuario
+      // entra a Historial o a Mi Plan Maestro, ya esté listo en caché en
+      // vez de tener que esperar el viaje de red justo en ese momento.
+      // Se dispara DESPUÉS de resolver _hydrateToday(), no en paralelo:
+      // justo al arrancar en frío (o reabrir tras un rato cerrada) es
+      // cuando menos conviene competir por ancho de banda con la llamada
+      // más importante (el plan de hoy) mientras la conexión reconecta.
+      // getLifeBlueprint()/getHistory() además comparten la llamada en
+      // curso si la pantalla correspondiente la pide casi al mismo tiempo
+      // (ver api_service.dart) — no se duplica el viaje de red.
+      _api.getHistory(days: 365);
+      _api.getLifeBlueprint();
+    });
   }
 
   // Si el usuario ya tiene un plan generado hoy, restauramos ese estado al

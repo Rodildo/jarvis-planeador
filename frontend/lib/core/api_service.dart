@@ -310,59 +310,99 @@ class ApiService {
     return null;
   }
 
+  // Future en curso, compartido entre llamadas simultáneas a getHistory
+  // (ver más abajo por qué hace falta).
+  static Future<List<Map<String, dynamic>>>? _historyInFlight;
+
   /// Con caché en memoria: si ya se pidió el historial antes en esta
   /// sesión, se devuelve al instante sin esperar otro viaje de red. Se
   /// llama en segundo plano apenas se entra a /chat (ver ChatProvider)
   /// para que, cuando el usuario abra Historial, ya esté listo.
-  /// Reintenta un par de veces ante fallas de red antes de rendirse (mismo
-  /// motivo que getTodayLog/getLifeBlueprint) — un [] devuelto por un 200
-  /// real sí es un historial legítimamente vacío, eso no se reintenta.
+  ///
+  /// **De-duplicación de peticiones en curso**: si `ChatProvider` ya
+  /// disparó esta misma llamada en segundo plano y el usuario abre
+  /// Historial antes de que termine, sin esto se dispararían DOS viajes de
+  /// red independientes al mismo endpoint — justo en el peor momento
+  /// (arranque en frío, conexión recién reconectando), duplicando la carga
+  /// de red cuando menos ancho de banda hay disponible. En vez de eso, la
+  /// segunda llamada espera el resultado de la que ya estaba en curso.
   Future<List<Map<String, dynamic>>> getHistory({int days = 30, bool forceRefresh = false}) async {
     if (!forceRefresh && _cachedHistory != null) return _cachedHistory!;
-    for (int attempt = 1; attempt <= 3; attempt++) {
-      try {
-        final response = await http.get(Uri.parse('$baseUrl/history?days=$days'), headers: _headers).timeout(_defaultTimeout, onTimeout: _timeoutError);
-        _reportIfUnauthorized(response);
-        if (response.statusCode == 200) {
-          final logs = (jsonDecode(response.body)['logs'] as List).cast<Map<String, dynamic>>();
-          _cachedHistory = logs;
-          return logs;
-        }
-      } catch (e) {
-        print('Get history error (intento $attempt): $e');
+    final inFlight = _historyInFlight;
+    if (inFlight != null) return inFlight;
+
+    final future = _fetchHistory(days);
+    _historyInFlight = future;
+    try {
+      return await future;
+    } finally {
+      _historyInFlight = null;
+    }
+  }
+
+  // Un solo intento (con timeout) por llamada: history_screen.dart ya
+  // reintenta por su cuenta cada 3 segundos mientras no haya datos (ver
+  // docs/reference/06-decisions.md), así que reintentar también aquí
+  // adentro solo alargaba cada ciclo sin necesidad (hasta ~36s por llamada
+  // antes de este cambio, sumado a los reintentos de la pantalla).
+  Future<List<Map<String, dynamic>>> _fetchHistory(int days) async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/history?days=$days'), headers: _headers).timeout(_defaultTimeout, onTimeout: _timeoutError);
+      _reportIfUnauthorized(response);
+      if (response.statusCode == 200) {
+        final logs = (jsonDecode(response.body)['logs'] as List).cast<Map<String, dynamic>>();
+        _cachedHistory = logs;
+        return logs;
       }
-      if (attempt < 3) await Future.delayed(const Duration(milliseconds: 800));
+    } catch (e) {
+      print('Get history error: $e');
     }
     return _cachedHistory ?? [];
   }
+
+  static Future<Map<String, dynamic>?>? _blueprintInFlight;
 
   /// Devuelve { 'blueprint': {...}, 'updatedAt': 'ISO date string' } o null
   /// si el usuario todavía no completó su primer brief. Con caché en
   /// memoria: justo después de terminar el brief (submitAssessment) ya
   /// queda precargado, así que la primera vez que se abre "Mi Plan
   /// Maestro" no hace falta esperar otro viaje de red.
-  /// Reintenta un par de veces antes de rendirse (mismo motivo que
-  /// getTodayLog: la primera llamada tras un arranque en frío puede
-  /// fallar por la red sin que eso signifique que de verdad no hay
-  /// blueprint). Un 404 real (el usuario nunca hizo el brief) no se
-  /// reintenta — no tiene sentido, esa respuesta ya es definitiva.
+  ///
+  /// De-duplicación de peticiones en curso: mismo motivo que getHistory
+  /// (la precarga en segundo plano de `ChatProvider` y esta pantalla
+  /// pueden pedir lo mismo casi al mismo tiempo).
   Future<Map<String, dynamic>?> getLifeBlueprint({bool forceRefresh = false}) async {
     if (!forceRefresh && _cachedBlueprint != null) return _cachedBlueprint;
-    for (int attempt = 1; attempt <= 3; attempt++) {
-      try {
-        final response = await http.get(Uri.parse('$baseUrl/blueprint'), headers: _headers).timeout(_defaultTimeout, onTimeout: _timeoutError);
-        _reportIfUnauthorized(response);
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          final result = {'blueprint': data['blueprint'], 'updatedAt': data['updatedAt']};
-          _cachedBlueprint = result;
-          return result;
-        }
-        if (response.statusCode == 404) return null;
-      } catch (e) {
-        print('Get blueprint error (intento $attempt): $e');
+    final inFlight = _blueprintInFlight;
+    if (inFlight != null) return inFlight;
+
+    final future = _fetchLifeBlueprint();
+    _blueprintInFlight = future;
+    try {
+      return await future;
+    } finally {
+      _blueprintInFlight = null;
+    }
+  }
+
+  // Un solo intento (con timeout) por llamada — blueprint_screen.dart ya
+  // reintenta por su cuenta cada 3 segundos mientras no haya datos. Un 404
+  // real (el usuario nunca hizo el brief) no es un fallo de red, es la
+  // respuesta definitiva; de cualquier forma esta función ya no distingue
+  // ese caso del de una falla real, porque sin loop interno no hace falta
+  // — ambos simplemente devuelven null y dejan que la pantalla decida.
+  Future<Map<String, dynamic>?> _fetchLifeBlueprint() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/blueprint'), headers: _headers).timeout(_defaultTimeout, onTimeout: _timeoutError);
+      _reportIfUnauthorized(response);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final result = {'blueprint': data['blueprint'], 'updatedAt': data['updatedAt']};
+        _cachedBlueprint = result;
+        return result;
       }
-      if (attempt < 3) await Future.delayed(const Duration(milliseconds: 800));
+    } catch (e) {
+      print('Get blueprint error: $e');
     }
     return null;
   }
