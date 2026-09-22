@@ -34,11 +34,11 @@ Cada vez que saques una versión nueva, solo repite los pasos 1-4 con un release
 
 ## Publicar el sitio
 
-Es HTML/CSS estático puro — no necesita build ni servidor con lógica. Cualquiera de estas opciones sirve tal cual:
+Es HTML/CSS estático puro — no necesita build ni servidor con lógica.
 
-- **GitHub Pages** (más simple, gratis): en la configuración del repo, `Settings → Pages`, elegir la rama `main` y la carpeta `/website` (o mover el contenido a una rama `gh-pages`/carpeta `docs` si GitHub Pages de tu plan lo exige así).
-- **EasyPanel**: crear un nuevo servicio de tipo "sitio estático" apuntando a esta carpeta.
-- Netlify, Vercel, o arrastrar la carpeta a cualquier hosting estático.
+**Decisión tomada (22 de septiembre de 2026):** esta carpeta se publica en su propio repo, [`Rodildo/webjotaelebundle`](https://github.com/Rodildo/webjotaelebundle), extraído de aquí con `git subtree push --prefix=website website-repo main` (el remote `website-repo` ya queda configurado en el repo principal, apunta a esa URL). Cada vez que se edite algo en `website/`, se vuelve a correr ese mismo comando para republicar — no hace falta recordar la sintaxis exacta, basta con pedir "sube la página web" otra vez.
+
+Despliegue en EasyPanel (servicio nuevo, tipo "sitio estático"/static, fuente GitHub → `Rodildo/webjotaelebundle`, rama `main`, sin build command, carpeta de publicación la raíz del repo): esto se hace desde la interfaz de EasyPanel, como el resto de despliegues de este proyecto (ver regla de compilación en `AGENTS.md`) — no hay API de EasyPanel conectada a estas herramientas.
 
 ## Capturas de pantalla
 
