@@ -55,7 +55,7 @@ Todos bajo el prefijo `/api`. 🔓 = público. 🔒 = requiere `Authorization: B
 | PATCH | `/profile` | 🔒 | `{ firstName, lastName }` — edita el nombre |
 | PUT | `/profile/avatar` | 🔒 | `{ avatar }` (data URI `data:image/...;base64,...`) — 400 si no empieza con `data:image/`, 413 si pasa de `MAX_AVATAR_LENGTH` (1,000,000 chars ≈ 750KB) |
 | DELETE | `/profile/avatar` | 🔒 | Quita el avatar (pone `NULL`) |
-| DELETE | `/account` | 🔒 | `{ password }` — verifica contraseña, borra en cascada: blueprint, onboarding_progress, daily_logs, y la fila del usuario |
+| DELETE | `/account` | 🔒 | `{ password }` — verifica contraseña, borra en cascada: blueprint, onboarding_progress, daily_logs, notas, y la fila del usuario |
 
 ### Brief / Blueprint
 
@@ -75,6 +75,17 @@ Todos bajo el prefijo `/api`. 🔓 = público. 🔒 = requiere `Authorization: B
 | GET | `/daily-log/:date` | 🔒 | La fila cruda de `daily_logs` para esa fecha |
 | POST | `/midday` | 🔒 + `aiCostLimiter` | `{ date, energyLevel, language }` → guarda `energy_midday`. Si el nivel de energía sigue en el mismo "balde" (Refugio/Estable/Expansión) que el de la mañana, devuelve solo `{ message }` con un mensaje de ajuste. Si cruzó a un balde distinto, regenera `midday`/`night` con la IA, descarta los `completed` de esos bloques (ya no corresponden a las tareas nuevas) y devuelve `{ message, plan, completed }` — el plan actualizado ya queda persistido en `actions_chosen` |
 | GET | `/history` | 🔒 | `?days=N` (default 30, tope 365) → lista de `daily_logs` ordenados DESC por fecha |
+
+### Notas
+
+Sin `aiCostLimiter` (no le pegan a la IA) ni ningún otro rate limit especial — lecturas/escrituras simples, igual de baratas que `/daily-actions`. Agregadas el 23 de septiembre de 2026 para que las notas dejaran de vivir solo en el dispositivo (ver [06-decisions.md](06-decisions.md)).
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| GET | `/notes` | 🔒 | Lista las notas del usuario, más recientemente editada primero. Devuelve `{ id, text, createdAt, updatedAt }` (camelCase; internamente son `created_at`/`updated_at` de sqlite) |
+| POST | `/notes` | 🔒 | `{ text }` → crea una nota, devuelve `{ id }` (el `id` real, generado por el servidor con `crypto.randomUUID()`) |
+| PUT | `/notes/:id` | 🔒 | `{ text }` → reemplaza el texto y refresca `updated_at`. La consulta filtra por `id` **y** `user_id`: editar el id de la nota de otra cuenta simplemente no afecta ninguna fila, sin dar ningún error revelador |
+| DELETE | `/notes/:id` | 🔒 | Mismo filtro por `id` + `user_id` que arriba |
 
 ## Base de datos (SQLite, `db/database.ts`)
 
@@ -114,6 +125,14 @@ Se borra (`DELETE`) al completar un `/assessment` exitoso — no se deja basura 
 | `morning_time` | DATETIME | se setea junto con `energy_morning` |
 | `actions_chosen` | TEXT NULL | JSON del estado completo del día: `{ plan, completed, manualTasks }` (ver [04-data-model.md](04-data-model.md)) |
 
+### `notes`
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | TEXT PK | `crypto.randomUUID()`, generado por el servidor en `POST /notes` (no por el cliente — evita colisiones entre dispositivos) |
+| `user_id` | TEXT NOT NULL | sin índice dedicado: a esta escala (notas personales, pocos usuarios) un `WHERE user_id = ?` sin índice es trivial para sqlite |
+| `text` | TEXT NOT NULL | |
+| `created_at`, `updated_at` | DATETIME | default `CURRENT_TIMESTAMP`; `updated_at` se refresca a mano en cada `PUT /notes/:id`. `getNotes` ordena `ORDER BY updated_at DESC, rowid DESC` — el desempate por `rowid` importa porque `CURRENT_TIMESTAMP` solo tiene resolución de 1 segundo, y dos notas tocadas en el mismo segundo quedarían en orden indefinido sin él |
+
 ### Migraciones
 
 No hay sistema de migraciones real. El patrón usado es: `CREATE TABLE IF NOT EXISTS` con el esquema completo actual, seguido de `ALTER TABLE ... ADD COLUMN` para cada columna agregada después, encadenados con callbacks que ignoran el error si la columna ya existe. Esto es deliberado y suficiente mientras el esquema no necesite cambios más complejos (renombrar columnas, cambiar tipos, etc.) — si llega ese caso, hay que escribir una migración de verdad.
@@ -137,4 +156,4 @@ Todos los `language?` son `'es'` \| `'en'`, opcionales (default español) — el
 
 ## Tests
 
-`backend/tests/`, con Jest. 10 suites, 43 tests a la fecha de este documento. Corren con `npm test`. Cobertura: auth (registro/login/cambio de contraseña/rate limiting/trust proxy), cuenta (perfil/avatar/eliminar), rutas de brief/blueprint/daily-plan/midday, capa de IA (mockeada, incluida la instrucción de idioma), y la capa de base de datos.
+`backend/tests/`, con Jest. 11 suites, 53 tests a la fecha de este documento. Corren con `npm test`. Cobertura: auth (registro/login/cambio de contraseña/rate limiting/trust proxy), cuenta (perfil/avatar/eliminar), rutas de brief/blueprint/daily-plan/midday/notas, capa de IA (mockeada, incluida la instrucción de idioma), y la capa de base de datos (incluye que las notas no se filtren entre cuentas y que se borren en cascada al eliminar la cuenta).
