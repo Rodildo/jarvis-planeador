@@ -193,11 +193,13 @@ class ApiService {
     await prefs.setString(_scopedKey(_historyDiskCacheKeyBase), jsonEncode(logs));
   }
 
-  /// Notas de texto libre: a diferencia del blueprint/historial esto no es
-  /// una caché de algo que también vive en el backend — es el único lugar
-  /// donde existen. No hay endpoint de notas (no hace falta, son solo texto
-  /// del usuario para sí mismo), así que viven 100% en este dispositivo.
-  Future<List<Map<String, dynamic>>> getNotes() async {
+  /// Notas de texto libre: el backend es la fuente de verdad (a diferencia
+  /// del caché de blueprint/historial de arriba, que sí es solo una copia
+  /// de algo autoritativo en el servidor) — así, cerrar sesión o cambiar de
+  /// teléfono ya no borra las notas. La copia en disco de abajo es nada más
+  /// para que la pantalla cargue al instante, mismo motivo que las de
+  /// arriba. Ver docs/reference/06-decisions.md.
+  Future<List<Map<String, dynamic>>> getCachedNotesFromDisk() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_scopedKey(_notesPrefsKeyBase));
     if (raw == null) return [];
@@ -208,9 +210,88 @@ class ApiService {
     }
   }
 
-  Future<void> saveNotes(List<Map<String, dynamic>> notes) async {
+  /// `notes_screen.dart` la llama después de cualquier cambio ya confirmado
+  /// por el servidor (crear/editar/borrar), para mantener la copia en disco
+  /// sincronizada sin necesitar otro viaje de red solo para refrescarla.
+  Future<void> cacheNotesLocally(List<Map<String, dynamic>> notes) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_scopedKey(_notesPrefsKeyBase), jsonEncode(notes));
+  }
+
+  // sqlite guarda los timestamps sin 'Z' (ej. "2026-09-22 10:00:00"); se le
+  // agrega acá para que Dart los interprete como UTC en vez de como hora
+  // local — mismo truco que ya usa `_fetchLifeBlueprint` con `updatedAt`.
+  List<Map<String, dynamic>> _normalizeNoteTimestamps(List<dynamic> raw) {
+    return raw.map((n) {
+      final note = Map<String, dynamic>.from(n as Map);
+      if (note['createdAt'] != null) note['createdAt'] = '${note['createdAt']}Z';
+      if (note['updatedAt'] != null) note['updatedAt'] = '${note['updatedAt']}Z';
+      return note;
+    }).toList();
+  }
+
+  /// A diferencia de `getHistory`/`getLifeBlueprint`, esta sí **lanza** ante
+  /// una falla de red en vez de devolver `[]` — una lista de notas vacía es
+  /// un estado real y válido (usuario nuevo, todavía sin escribir nada), así
+  /// que `notes_screen.dart` necesita poder distinguir "de verdad no hay
+  /// notas" de "no se pudo saber" para decidir si reintentar o mostrar el
+  /// estado vacío (mismo motivo que `getOnboardingProgress`).
+  Future<List<Map<String, dynamic>>> getNotes() async {
+    final response = await http.get(Uri.parse('$baseUrl/notes'), headers: _headers).timeout(_defaultTimeout, onTimeout: _timeoutError);
+    _reportIfUnauthorized(response);
+    if (response.statusCode != 200) {
+      throw Exception(_friendlyError(response, 'No se pudieron cargar las notas.'));
+    }
+    final notes = _normalizeNoteTimestamps(jsonDecode(response.body)['notes'] as List);
+    // No await: no hace falta bloquear la respuesta solo para terminar de
+    // escribir la copia en disco.
+    cacheNotesLocally(notes);
+    return notes;
+  }
+
+  /// Devuelve el id asignado por el servidor, o null si falló — a
+  /// diferencia de `getNotes`, aquí el llamador ya tiene la lista completa
+  /// en memoria y solo necesita saber si debe aplicar el cambio o mostrar
+  /// un error, así que un simple null/bool basta (ver `notes_screen.dart`).
+  Future<String?> createNote(String text) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/notes'),
+        headers: _headers,
+        body: jsonEncode({'text': text}),
+      ).timeout(_defaultTimeout, onTimeout: _timeoutError);
+      _reportIfUnauthorized(response);
+      if (response.statusCode == 201) return jsonDecode(response.body)['id'] as String?;
+    } catch (e) {
+      print('Create note error: $e');
+    }
+    return null;
+  }
+
+  Future<bool> updateNoteRemote(String id, String text) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/notes/$id'),
+        headers: _headers,
+        body: jsonEncode({'text': text}),
+      ).timeout(_defaultTimeout, onTimeout: _timeoutError);
+      _reportIfUnauthorized(response);
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Update note error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteNoteRemote(String id) async {
+    try {
+      final response = await http.delete(Uri.parse('$baseUrl/notes/$id'), headers: _headers).timeout(_defaultTimeout, onTimeout: _timeoutError);
+      _reportIfUnauthorized(response);
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Delete note error: $e');
+      return false;
+    }
   }
 
   Map<String, String> get _headers => {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -17,6 +18,8 @@ class _NotesScreenState extends State<NotesScreen> {
   final ApiService _api = ApiService();
   bool _isLoading = true;
   List<Map<String, dynamic>> _notes = [];
+  Timer? _retryTimer;
+  bool _isFetching = false;
 
   @override
   void initState() {
@@ -24,110 +27,171 @@ class _NotesScreenState extends State<NotesScreen> {
     _loadNotes();
   }
 
-  // Sin red de por medio (todo vive en SharedPreferences), así que esto
-  // resuelve casi al instante — no hace falta la lógica de reintentos que
-  // sí necesitan Historial/Plan Maestro contra un backend que puede fallar.
-  Future<void> _loadNotes() async {
-    final notes = await _api.getNotes();
-    if (!mounted) return;
-    setState(() {
-      _notes = notes;
-      _isLoading = false;
-    });
+  @override
+  void dispose() {
+    _retryTimer?.cancel();
+    super.dispose();
   }
 
-  Future<void> _persist() async {
-    await _api.saveNotes(_notes);
+  // Mismo patrón que Plan Maestro/Historial: la copia en disco se muestra
+  // al instante (sin spinner) y de inmediato se dispara una actualización
+  // silenciosa contra el backend, que ahora es la fuente de verdad real.
+  Future<void> _loadNotes() async {
+    final cached = await _api.getCachedNotesFromDisk();
+    if (cached.isNotEmpty && mounted) {
+      setState(() {
+        _notes = cached;
+        _isLoading = false;
+      });
+    }
+    await _refreshFromNetwork();
+  }
+
+  // A diferencia de Historial (que reintenta mientras la lista esté vacía,
+  // sin distinguir "vacío de verdad" de "no se pudo saber"), acá sí importa
+  // la diferencia: una cuenta nueva legítimamente no tiene notas todavía, y
+  // eso debe mostrar el estado vacío normal, no reintentar para siempre.
+  // `getNotes()` lanza ante una falla de red (ver api_service.dart), así
+  // que solo se reintenta dentro del `catch` — y solo si todavía no hay
+  // nada que mostrar.
+  Future<void> _refreshFromNetwork() async {
+    if (_isFetching) return;
+    _isFetching = true;
+    try {
+      final notes = await _api.getNotes();
+      if (!mounted) return;
+      _retryTimer?.cancel();
+      setState(() {
+        _notes = notes;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (_notes.isEmpty && mounted) {
+        _retryTimer ??= Timer.periodic(const Duration(seconds: 3), (_) => _refreshFromNetwork());
+      }
+    } finally {
+      _isFetching = false;
+    }
+  }
+
+  void _showSavingError(AppLanguage lang) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(lang.t('common.error'))));
   }
 
   Future<void> _showNoteDialog({Map<String, dynamic>? existing}) async {
     final lang = context.read<AppLanguage>();
     final t = lang.t;
     final controller = TextEditingController(text: existing?['text']?.toString() ?? '');
+    bool isSaving = false;
+    String? localError;
+
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF131B2F),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          existing == null ? t('notes.newNote') : t('notes.editNote'),
-          style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLines: 6,
-          minLines: 3,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: t('notes.hint'),
-            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF131B2F),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            existing == null ? t('notes.newNote') : t('notes.editNote'),
+            style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                maxLines: 6,
+                minLines: 3,
+                enabled: !isSaving,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: t('notes.hint'),
+                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFF00E5FF)),
+                  ),
+                ),
+              ),
+              if (localError != null) ...[
+                const SizedBox(height: 10),
+                Text(localError!, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
+              child: Text(t('common.cancel'), style: GoogleFonts.inter(color: Colors.white54)),
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Color(0xFF00E5FF)),
+            TextButton(
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      final text = controller.text.trim();
+                      if (text.isEmpty) {
+                        Navigator.pop(dialogContext);
+                        return;
+                      }
+                      setDialogState(() {
+                        isSaving = true;
+                        localError = null;
+                      });
+                      final success = existing == null
+                          ? await _addNote(text)
+                          : await _updateNote(existing['id'].toString(), text);
+                      if (success) {
+                        if (dialogContext.mounted) Navigator.pop(dialogContext);
+                      } else {
+                        setDialogState(() {
+                          isSaving = false;
+                          localError = t('common.error');
+                        });
+                      }
+                    },
+              child: Text(t('common.save'), style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
             ),
-          ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(t('common.cancel'), style: GoogleFonts.inter(color: Colors.white54)),
-          ),
-          TextButton(
-            onPressed: () {
-              final text = controller.text.trim();
-              if (text.isEmpty) {
-                Navigator.pop(dialogContext);
-                return;
-              }
-              if (existing == null) {
-                _addNote(text);
-              } else {
-                _updateNote(existing['id'].toString(), text);
-              }
-              Navigator.pop(dialogContext);
-            },
-            child: Text(t('common.save'), style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.bold)),
-          ),
-        ],
       ),
     );
   }
 
-  void _addNote(String text) {
+  Future<bool> _addNote(String text) async {
+    final id = await _api.createNote(text);
+    if (id == null) return false;
     final now = DateTime.now().toIso8601String();
     setState(() {
-      _notes.insert(0, {
-        'id': DateTime.now().microsecondsSinceEpoch.toString(),
-        'text': text,
-        'createdAt': now,
-        'updatedAt': now,
-      });
+      _notes.insert(0, {'id': id, 'text': text, 'createdAt': now, 'updatedAt': now});
     });
-    _persist();
+    await _api.cacheNotesLocally(_notes);
+    return true;
   }
 
-  void _updateNote(String id, String text) {
+  Future<bool> _updateNote(String id, String text) async {
+    final success = await _api.updateNoteRemote(id, text);
+    if (!success) return false;
     setState(() {
       final index = _notes.indexWhere((n) => n['id'].toString() == id);
       if (index == -1) return;
-      _notes[index] = {
-        ..._notes[index],
-        'text': text,
-        'updatedAt': DateTime.now().toIso8601String(),
-      };
-      final updated = _notes.removeAt(index);
+      final updated = {..._notes[index], 'text': text, 'updatedAt': DateTime.now().toIso8601String()};
+      _notes.removeAt(index);
       _notes.insert(0, updated);
     });
-    _persist();
+    await _api.cacheNotesLocally(_notes);
+    return true;
   }
 
   Future<void> _confirmDelete(String id) async {
-    final t = context.read<AppLanguage>().t;
+    final lang = context.read<AppLanguage>();
+    final t = lang.t;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -147,14 +211,22 @@ class _NotesScreenState extends State<NotesScreen> {
         ],
       ),
     );
-    if (confirmed == true) {
-      setState(() => _notes.removeWhere((n) => n['id'].toString() == id));
-      await _persist();
+    if (confirmed != true) return;
+
+    final success = await _api.deleteNoteRemote(id);
+    if (!success) {
+      _showSavingError(lang);
+      return;
     }
+    setState(() => _notes.removeWhere((n) => n['id'].toString() == id));
+    await _api.cacheNotesLocally(_notes);
   }
 
   String _formatUpdatedAt(String? iso, AppLanguage lang) {
-    final date = iso == null ? null : DateTime.tryParse(iso);
+    // .toLocal(): las notas que vienen del servidor traen su timestamp en
+    // UTC (ver api_service.dart); las creadas/editadas en este dispositivo
+    // ya están en hora local, así que esto es un no-op para esas.
+    final date = iso == null ? null : DateTime.tryParse(iso)?.toLocal();
     if (date == null) return '';
     final day = date.day;
     final month = lang.monthAbbrev[date.month - 1];

@@ -5,7 +5,8 @@ import { generateBlueprint, generateDailyPlan, generateMidDayAdjustment, generat
 import {
     saveBlueprint, getBlueprint, getBlueprintUpdatedAt, saveMorningLog, saveMiddayLog, saveDailyActions, getDailyLog,
     getRecentDailyLogs, hasBlueprint, saveOnboardingProgress, getOnboardingProgress, clearOnboardingProgress,
-    createUser, getUserByEmail, getUserById, updateUserName, updateUserPassword, updateUserAvatar, deleteUserAccount
+    createUser, getUserByEmail, getUserById, updateUserName, updateUserPassword, updateUserAvatar, deleteUserAccount,
+    createNote, getNotes, updateNote, deleteNote
 } from '../db/database';
 import { requireAuth, hashPassword, verifyPassword, signToken, isValidEmail, AuthedRequest } from '../auth/auth';
 
@@ -402,5 +403,66 @@ apiRouter.post('/midday', aiCostLimiter, async (req: AuthedRequest, res) => {
     } catch (error: any) {
         console.error('Midday Error:', error);
         res.status(500).json({ error: error.stack || String(error) || 'Internal server error' });
+    }
+});
+
+// Notas de texto libre del usuario. A diferencia de blueprint/historial no
+// hay generación con IA ni límite de tasa especial — son solo lecturas y
+// escrituras simples contra la base de datos, igual de baratas que
+// /daily-actions. El cliente sincroniza esto con su propia copia local
+// (SharedPreferences) para que la pantalla cargue al instante; este es el
+// origen de verdad, así que cerrar sesión o cambiar de teléfono ya no
+// pierde nada. `id` lo genera el cliente en su copia local para mostrarla
+// de inmediato, pero el `id` real que sí se guarda es el que devuelve
+// POST /notes (evita colisiones entre dispositivos).
+apiRouter.get('/notes', async (req: AuthedRequest, res) => {
+    try {
+        const notes = await getNotes(req.userId!);
+        res.status(200).json({
+            success: true,
+            notes: notes.map((n) => ({ id: n.id, text: n.text, createdAt: n.created_at, updatedAt: n.updated_at })),
+        });
+    } catch (error: any) {
+        console.error('Get Notes Error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
+
+apiRouter.post('/notes', async (req: AuthedRequest, res) => {
+    try {
+        const text = String(req.body.text ?? '').trim();
+        if (!text) return res.status(400).json({ error: 'text is required' });
+        const id = crypto.randomUUID();
+        await createNote(id, req.userId!, text);
+        res.status(201).json({ success: true, id });
+    } catch (error: any) {
+        console.error('Create Note Error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
+
+apiRouter.put('/notes/:id', async (req: AuthedRequest, res) => {
+    try {
+        const id = req.params.id;
+        if (!id || Array.isArray(id)) return res.status(400).json({ error: 'id is required' });
+        const text = String(req.body.text ?? '').trim();
+        if (!text) return res.status(400).json({ error: 'text is required' });
+        await updateNote(id, req.userId!, text);
+        res.status(200).json({ success: true });
+    } catch (error: any) {
+        console.error('Update Note Error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
+
+apiRouter.delete('/notes/:id', async (req: AuthedRequest, res) => {
+    try {
+        const id = req.params.id;
+        if (!id || Array.isArray(id)) return res.status(400).json({ error: 'id is required' });
+        await deleteNote(id, req.userId!);
+        res.status(200).json({ success: true });
+    } catch (error: any) {
+        console.error('Delete Note Error:', error);
+        res.status(500).json({ error: error.message || 'Internal server error' });
     }
 });

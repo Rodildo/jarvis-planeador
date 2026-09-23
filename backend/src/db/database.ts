@@ -33,7 +33,7 @@ export const initDB = async (dbPath: string = './data/jarvis.sqlite'): Promise<v
                 )
             `, (err) => {
                 if (err) reject(err);
-                
+
                 db.run(`
                     CREATE TABLE IF NOT EXISTS onboarding_progress (
                         user_id TEXT PRIMARY KEY,
@@ -42,7 +42,7 @@ export const initDB = async (dbPath: string = './data/jarvis.sqlite'): Promise<v
                     )
                 `, (err) => {
                     if (err) reject(err);
-                    
+
                     db.run(`
                         CREATE TABLE IF NOT EXISTS daily_logs (
                             user_id TEXT,
@@ -57,22 +57,34 @@ export const initDB = async (dbPath: string = './data/jarvis.sqlite'): Promise<v
                         if (err) reject(err);
 
                         db.run(`
-                            CREATE TABLE IF NOT EXISTS users (
+                            CREATE TABLE IF NOT EXISTS notes (
                                 id TEXT PRIMARY KEY,
-                                email TEXT UNIQUE NOT NULL,
-                                password_hash TEXT NOT NULL,
-                                first_name TEXT NOT NULL DEFAULT '',
-                                last_name TEXT NOT NULL DEFAULT '',
-                                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                                user_id TEXT NOT NULL,
+                                text TEXT NOT NULL,
+                                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                             )
                         `, (err) => {
                             if (err) reject(err);
-                            // Migraciones ligeras para bases de datos creadas antes de
-                            // agregar estas columnas; fallan en silencio si ya existen.
-                            db.run(`ALTER TABLE users ADD COLUMN first_name TEXT NOT NULL DEFAULT ''`, () => {
-                                db.run(`ALTER TABLE users ADD COLUMN last_name TEXT NOT NULL DEFAULT ''`, () => {
-                                    db.run(`ALTER TABLE users ADD COLUMN avatar TEXT`, () => {
-                                        resolve();
+
+                            db.run(`
+                                CREATE TABLE IF NOT EXISTS users (
+                                    id TEXT PRIMARY KEY,
+                                    email TEXT UNIQUE NOT NULL,
+                                    password_hash TEXT NOT NULL,
+                                    first_name TEXT NOT NULL DEFAULT '',
+                                    last_name TEXT NOT NULL DEFAULT '',
+                                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                                )
+                            `, (err) => {
+                                if (err) reject(err);
+                                // Migraciones ligeras para bases de datos creadas antes de
+                                // agregar estas columnas; fallan en silencio si ya existen.
+                                db.run(`ALTER TABLE users ADD COLUMN first_name TEXT NOT NULL DEFAULT ''`, () => {
+                                    db.run(`ALTER TABLE users ADD COLUMN last_name TEXT NOT NULL DEFAULT ''`, () => {
+                                        db.run(`ALTER TABLE users ADD COLUMN avatar TEXT`, () => {
+                                            resolve();
+                                        });
                                     });
                                 });
                             });
@@ -216,6 +228,62 @@ export const getRecentDailyLogs = async (userId: string, days: number): Promise<
     });
 };
 
+export interface NoteRecord {
+    id: string;
+    text: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export const createNote = async (id: string, userId: string, text: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        const stmt = db.prepare(`INSERT INTO notes (id, user_id, text) VALUES (?, ?, ?)`);
+        stmt.run(id, userId, text, (err: Error | null) => {
+            stmt.finalize();
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+};
+
+export const getNotes = async (userId: string): Promise<NoteRecord[]> => {
+    return new Promise((resolve, reject) => {
+        // `updated_at` solo tiene resolución de 1 segundo (CURRENT_TIMESTAMP
+        // de sqlite), así que dos notas tocadas en el mismo segundo
+        // quedarían en orden indefinido sin el desempate por `rowid`
+        // (createNote y updateNote usan solo `UPDATE`/`INSERT`, nunca
+        // reinsertan, así que `rowid` sigue reflejando cuál se tocó último).
+        db.all(
+            `SELECT id, text, created_at, updated_at FROM notes WHERE user_id = ? ORDER BY updated_at DESC, rowid DESC`,
+            [userId],
+            (err, rows: any[]) => {
+                if (err) reject(err);
+                else resolve(rows || []);
+            }
+        );
+    });
+};
+
+export const updateNote = async (id: string, userId: string, text: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        const stmt = db.prepare(`UPDATE notes SET text = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`);
+        stmt.run(text, id, userId, (err: Error | null) => {
+            stmt.finalize();
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+};
+
+export const deleteNote = async (id: string, userId: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+        db.run(`DELETE FROM notes WHERE id = ? AND user_id = ?`, [id, userId], (err: Error | null) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+};
+
 export const createUser = async (id: string, email: string, passwordHash: string, firstName: string, lastName: string): Promise<void> => {
     return new Promise((resolve, reject) => {
         const stmt = db.prepare(`INSERT INTO users (id, email, password_hash, first_name, last_name) VALUES (?, ?, ?, ?, ?)`);
@@ -303,5 +371,6 @@ export const deleteUserAccount = async (id: string): Promise<void> => {
     await run(`DELETE FROM blueprints WHERE user_id = ?`);
     await run(`DELETE FROM onboarding_progress WHERE user_id = ?`);
     await run(`DELETE FROM daily_logs WHERE user_id = ?`);
+    await run(`DELETE FROM notes WHERE user_id = ?`);
     await run(`DELETE FROM users WHERE id = ?`);
 };
