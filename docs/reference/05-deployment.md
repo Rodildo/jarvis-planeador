@@ -75,6 +75,16 @@ Pasos para forzar que todos los usuarios (que ya tengan la build actual o superi
 
 **`kAppBuildNumber` debe subirse a mano junto con el `+N` de `version:` en `pubspec.yaml` en cada release** — no hay nada que los mantenga sincronizados automáticamente, es responsabilidad de quien compila.
 
+## Website: repo propio + GitHub Pages + dominio de IONOS
+
+Contenido y SEO del sitio en [08-website.md](08-website.md); esta sección es solo el cómo se publica.
+
+1. El código fuente vive en `website/` de este repo, pero **se publica desde su propio repo**, [`Rodildo/webjotaelebundle`](https://github.com/Rodildo/webjotaelebundle) (público). Se extrae con `git subtree push --prefix=website website-repo main` — el remote `website-repo` ya está configurado en el repo principal apuntando a esa URL. Cada vez que se edite algo en `website/`, se vuelve a correr ese mismo comando para republicar (basta con pedir "sube la página web").
+2. Ese repo tiene **GitHub Pages** activado: `Settings → Pages` → `Source: Deploy from a branch` → rama `main`, carpeta `/ (root)`.
+3. **Dominio propio:** el usuario tiene 4 dominios en IONOS (`jotaelebundle.com`, `.es`, `.info`, `.store`); se eligió `jotaelebundle.com` por ser la extensión más reconocida (ver [06-decisions.md](06-decisions.md)). El sitio se sirve en `www.jotaelebundle.com` (no en el dominio raíz — ver el punto 5).
+4. Configuración de DNS necesaria en IONOS (`Dominios & SSL` → `jotaelebundle.com` → gestión DNS): un registro `CNAME`, host `www`, valor `rodildo.github.io`. El archivo `website/CNAME` (contenido: `www.jotaelebundle.com`) es lo que le dice a GitHub Pages qué dominio propio servir; se publica automáticamente con cada `git subtree push`. En `Settings → Pages` del repo, el campo `Custom domain` debe tener ese mismo valor guardado — GitHub verifica el DNS solo, y cuando lo valida habilita el checkbox `Enforce HTTPS` (activarlo apenas esté disponible).
+5. **El dominio raíz (`jotaelebundle.com`, sin `www`) no sirve el sitio** — un dominio raíz no puede usar un registro `CNAME` por especificación de DNS, y no se configuraron registros `A`/`AAAA` a las IPs de GitHub Pages para habilitarlo. GitHub marca esto como "improperly configured" para el dominio raíz en el panel de Pages — es esperado, no un error a resolver, dado que se eligió deliberadamente el esquema solo-`www` (ver [06-decisions.md](06-decisions.md)). Si en el futuro se quiere que `jotaelebundle.com` sin `www` también funcione, la opción más simple es una redirección/forwarding de dominio desde el panel de IONOS hacia `https://www.jotaelebundle.com`, sin tocar este repo.
+
 ## Regla de trabajo acordada con el usuario
 
 Cuando se modifica algo en `backend/`, el flujo esperado es: verificar (`tsc --noEmit` + `jest`), hacer commit y **push automáticamente sin que el usuario tenga que pedirlo cada vez**, y recordarle que tiene que ir a EasyPanel a darle "Deploy". Si el cambio es solo en `frontend/`, no aplica ningún push obligatorio ni recordatorio de deploy — el usuario recompila el APK cuando quiere probarlo.

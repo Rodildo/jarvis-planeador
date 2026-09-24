@@ -35,7 +35,7 @@ Multiusuario con cuentas reales (email + contraseña). Cada usuario tiene su pro
 ```
 /backend         — API Express + SQLite + integración con OpenRouter
 /frontend        — App Flutter
-/website         — Landing page estática (descarga del APK + Política de Privacidad pública)
+/website         — Landing page estática (descarga del APK + Política de Privacidad pública, ver docs/reference/08-website.md)
 /docs
   /reference      — ESTOS documentos (contexto técnico vigente)
   /superpowers    — Specs/planes originales del diseño inicial (histórico, desactualizado)
