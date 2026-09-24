@@ -101,6 +101,8 @@ const Map<String, String> stringsEn = {
   'chat.connectionErrorSuffix': 'Check your connection and try again.',
   'chat.middayPrompt': 'How is your energy level right now (1-5)?',
   'chat.loadingMiddayCheck': 'Loading your energy check, please wait...',
+  'chat.showMore': 'Show more',
+  'chat.showLess': 'Show less',
 
   // providers/onboarding_provider.dart
   'onboarding.skippedAnswer': '(the user preferred not to answer this question)',

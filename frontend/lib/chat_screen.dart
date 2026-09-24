@@ -28,6 +28,11 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  static const int _collapsedMessageLines = 3;
+
+  bool _messageExpanded = false;
+  String? _lastMessage;
+
   void _selectEnergy(int level, ChatProvider provider) {
     if (provider.isLoading) return;
 
@@ -202,6 +207,50 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  Widget _buildJarvisMessage(String message, String Function(String) t) {
+    if (_lastMessage != message) {
+      _lastMessage = message;
+      _messageExpanded = false;
+    }
+
+    final textStyle = GoogleFonts.inter(color: Colors.white, fontSize: 15, height: 1.5);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final painter = TextPainter(
+          text: TextSpan(text: message, style: textStyle),
+          maxLines: _collapsedMessageLines,
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: constraints.maxWidth);
+        final overflows = painter.didExceedMaxLines;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              message,
+              style: textStyle,
+              maxLines: _messageExpanded ? null : _collapsedMessageLines,
+              overflow: _messageExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
+            ),
+            if (overflows)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: GestureDetector(
+                  onTap: () => setState(() => _messageExpanded = !_messageExpanded),
+                  child: Text(
+                    _messageExpanded ? t('chat.showLess') : t('chat.showMore'),
+                    style: GoogleFonts.inter(color: const Color(0xFF00E5FF), fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ChatProvider>();
@@ -272,9 +321,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           ),
                           const SizedBox(width: 16),
                           Expanded(
-                            child: Text(provider.jarvisMessage,
-                              style: GoogleFonts.inter(color: Colors.white, fontSize: 15, height: 1.5)
-                            ),
+                            child: _buildJarvisMessage(provider.jarvisMessage, t),
                           ),
                         ],
                       ),
