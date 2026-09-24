@@ -8,6 +8,8 @@ website/
   privacidad.html      — Política de Privacidad y Términos (mismo texto que /legal dentro de la app)
   css/styles.css
   CNAME                — dominio personalizado para GitHub Pages (www.jotaelebundle.com)
+  robots.txt           — permite indexar todo, apunta al sitemap
+  sitemap.xml           — las dos páginas del sitio, para Google Search Console
   assets/
     logo.png                    — ícono de la app (copiado de frontend/assets/icon/app_icon.png)
     screenshots/
@@ -51,6 +53,21 @@ Es HTML/CSS estático puro — no necesita build ni servidor con lógica.
 6. Opcional: quien escriba `jotaelebundle.com` sin `www` no llega al sitio a menos que se configure aparte (un dominio raíz no puede usar CNAME por spec de DNS). Si se quiere cubrir ese caso, IONOS suele tener una opción de "redirección/forwarding" de dominio para mandar `jotaelebundle.com` → `https://www.jotaelebundle.com`, configurable desde su panel sin tocar este repo.
 
 EasyPanel ya no hace falta para este sitio — el static site en EasyPanel documentado arriba queda descartado a favor de GitHub Pages.
+
+## SEO
+
+Lo básico ya está puesto en `index.html` y `privacidad.html`:
+
+- `<link rel="canonical">` y `<meta name="robots" content="index, follow">` en ambas páginas.
+- Open Graph + Twitter Card (título, descripción, imagen) para que se vea bien al compartir el link.
+- Datos estructurados JSON-LD (`schema.org/MobileApplication`) en `index.html`, con nombre, categoría, `downloadUrl` al APK y autor.
+- `robots.txt` (permite todo, apunta al sitemap) y `sitemap.xml` con las dos URLs del sitio.
+
+**Pendiente (a petición del usuario, para una sesión futura):** verificar la propiedad del dominio en **Google Search Console** y enviar el `sitemap.xml` ahí para que Google empiece a indexar el sitio. Suele pedir uno de estos dos métodos:
+- Subir un archivo HTML de verificación a la raíz del sitio (a `website/`, y volver a publicar con `git subtree push`), o
+- Agregar un registro TXT en el DNS de `jotaelebundle.com` en IONOS.
+
+Si más adelante se quiere mejorar el posicionamiento todavía más: la imagen usada en Open Graph (`assets/logo.png`, 246×246) es cuadrada — redes como Facebook/WhatsApp prefieren una imagen 1200×630 para la vista previa al compartir el link; no es bloqueante, solo una mejora cosmética futura.
 
 ## Capturas de pantalla
 
