@@ -1,7 +1,7 @@
 import request from 'supertest';
 import express from 'express';
-import { apiRouter } from '../../src/api/routes';
-import { getBlueprint, saveMorningLog, getUserById } from '../../src/db/database';
+import { apiRouter, extractRecentTasks } from '../../src/api/routes';
+import { getBlueprint, saveMorningLog, getUserById, getRecentDailyLogs } from '../../src/db/database';
 import { generateDailyPlan } from '../../src/ai/gemini';
 
 jest.mock('../../src/db/database');
@@ -33,6 +33,10 @@ describe('API Routes - Daily Plan', () => {
         (saveMorningLog as jest.Mock).mockResolvedValue(undefined);
         (getUserById as jest.Mock).mockResolvedValue({ id: 'user_123', email: 'jorge@example.com', password_hash: 'x', first_name: 'Jorge', last_name: 'Castillo' });
         (generateDailyPlan as jest.Mock).mockResolvedValue(mockPlan);
+        (getRecentDailyLogs as jest.Mock).mockResolvedValue([
+            { date: '2026-09-17', actions_chosen: JSON.stringify({ plan: { morning: [{ task: 'Hoy' }] } }) },
+            { date: '2026-09-16', actions_chosen: JSON.stringify({ plan: { morning: [{ task: 'Meditar 10 min' }], midday: [], night: [] }, completed: {} }) },
+        ]);
 
         const response = await request(app)
             .post('/api/daily-plan')
@@ -44,7 +48,7 @@ describe('API Routes - Daily Plan', () => {
 
         expect(saveMorningLog).toHaveBeenCalledWith('user_123', '2026-09-17', 5);
         expect(getBlueprint).toHaveBeenCalledWith('user_123');
-        expect(generateDailyPlan).toHaveBeenCalledWith(JSON.parse(mockBlueprint), 5, 'Jorge', undefined);
+        expect(generateDailyPlan).toHaveBeenCalledWith(JSON.parse(mockBlueprint), 5, 'Jorge', undefined, { date: '2026-09-17', recentTasks: ['Meditar 10 min'] });
     });
 
     it('POST /api/daily-plan should return 404 if blueprint is missing', async () => {
@@ -56,5 +60,16 @@ describe('API Routes - Daily Plan', () => {
 
         expect(response.status).toBe(404);
         expect(response.body.error).toBe('Blueprint not found for user');
+    });
+
+    it('extractRecentTasks skips today, dedupes, and tolerates old/bad logs', () => {
+        const logs = [
+            { date: '2026-09-17', actions_chosen: JSON.stringify({ plan: { morning: [{ task: 'Hoy' }] } }) },
+            { date: '2026-09-16', actions_chosen: JSON.stringify({ plan: { morning: [{ task: 'A' }], midday: [{ task: 'B' }], night: [{ task: 'A' }] } }) },
+            { date: '2026-09-15', actions_chosen: JSON.stringify({ morning: [{ task: 'C' }] }) },
+            { date: '2026-09-14', actions_chosen: 'not json' },
+            { date: '2026-09-13', actions_chosen: null },
+        ];
+        expect(extractRecentTasks(logs, '2026-09-17')).toEqual(['A', 'B', 'C']);
     });
 });

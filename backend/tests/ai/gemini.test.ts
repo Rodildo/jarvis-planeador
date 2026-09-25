@@ -1,4 +1,4 @@
-import { generateBlueprint, generateDailyPlan, generateMidDayReplan, energyModeChanged } from '../../src/ai/gemini';
+import { generateBlueprint, generateDailyPlan, generateMidDayReplan, energyModeChanged, focusAreaForDate, LIFE_AREAS } from '../../src/ai/gemini';
 
 describe('Gemini AI Layer (OpenRouter)', () => {
     beforeEach(() => {
@@ -142,5 +142,28 @@ describe('language directive', () => {
 
         const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
         expect(requestBody.messages[0].content).toContain('Responde solo en español');
+    });
+
+    it('daily plan prompt includes date, rotating focus area, and recent tasks to avoid repetition', async () => {
+        const fetchMock = jest.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ choices: [{ message: { content: '{"greeting": "hi", "morning": [], "midday": [], "night": []}' } }] })
+        });
+        global.fetch = fetchMock as unknown as typeof fetch;
+
+        await generateDailyPlan({ areas: {} }, 3, 'Jorge', 'es', { date: '2026-09-25', recentTasks: ['Meditar 10 min'] });
+
+        const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+        const userPrompt = requestBody.messages[1].content;
+        expect(userPrompt).toContain('2026-09-25 (viernes)');
+        expect(userPrompt).toContain(focusAreaForDate('2026-09-25').label);
+        expect(userPrompt).toContain('Meditar 10 min');
+        expect(requestBody.temperature).toBe(0.9);
+    });
+
+    it('focusAreaForDate cycles through every life area on consecutive days', () => {
+        const days = ['2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24', '2026-09-25'];
+        const keys = new Set(days.map(d => focusAreaForDate(d).key));
+        expect(keys.size).toBe(LIFE_AREAS.length);
     });
 });

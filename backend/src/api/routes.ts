@@ -319,6 +319,28 @@ apiRouter.get('/history', async (req: AuthedRequest, res) => {
     }
 });
 
+// Títulos de las tareas de IA de días anteriores (sin contar hoy), para que
+// el plan de hoy no repita lo mismo. actions_chosen guarda
+// { plan, completed, manualTasks } (o el plan directo en logs viejos).
+const MAX_RECENT_TASKS = 40;
+export const extractRecentTasks = (logs: any[], today: string): string[] => {
+    const tasks: string[] = [];
+    for (const log of logs) {
+        if (!log?.actions_chosen || log.date === today) continue;
+        let state: any;
+        try { state = JSON.parse(log.actions_chosen); } catch { continue; }
+        const plan = state?.plan ?? state;
+        for (const block of ['morning', 'midday', 'night']) {
+            const items = Array.isArray(plan?.[block]) ? plan[block] : [];
+            for (const item of items) {
+                const task = typeof item?.task === 'string' ? item.task.trim() : '';
+                if (task && !tasks.includes(task)) tasks.push(task);
+            }
+        }
+    }
+    return tasks.slice(0, MAX_RECENT_TASKS);
+};
+
 apiRouter.post('/daily-plan', aiCostLimiter, async (req: AuthedRequest, res) => {
     try {
         const { date, energyLevel, language } = req.body;
@@ -331,7 +353,9 @@ apiRouter.post('/daily-plan', aiCostLimiter, async (req: AuthedRequest, res) => 
         if (!blueprintData) return res.status(404).json({ error: 'Blueprint not found for user' });
 
         const user = await getUserById(userId);
-        const plan = await generateDailyPlan(JSON.parse(blueprintData), energyLevel, user?.first_name, language);
+        const recentLogs = await getRecentDailyLogs(userId, 6);
+        const recentTasks = extractRecentTasks(recentLogs, date);
+        const plan = await generateDailyPlan(JSON.parse(blueprintData), energyLevel, user?.first_name, language, { date, recentTasks });
         res.status(200).json({ success: true, plan });
     } catch (error: any) {
         console.error('Daily Plan Error:', error);

@@ -18,7 +18,7 @@ export const LIFE_AREAS: LifeArea[] = [
 export const QUESTIONS_PER_AREA = 10;
 export const TOTAL_ONBOARDING_QUESTIONS = LIFE_AREAS.length * QUESTIONS_PER_AREA;
 
-const callOpenRouter = async (systemPrompt: string, userMessage: string, forceJson: boolean = false, maxTokens: number = 700): Promise<string> => {
+const callOpenRouter = async (systemPrompt: string, userMessage: string, forceJson: boolean = false, maxTokens: number = 700, temperature?: number): Promise<string> => {
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) throw new Error('OPENROUTER_API_KEY not configured');
 
@@ -35,6 +35,7 @@ const callOpenRouter = async (systemPrompt: string, userMessage: string, forceJs
         // realmente necesita generar.
         max_tokens: maxTokens,
     };
+    if (temperature !== undefined) body.temperature = temperature;
 
     if (forceJson) {
         body.response_format = { type: "json_object" };
@@ -94,11 +95,11 @@ const extractJson = (text: string, errorLabel: string): any => {
 // válido). Ese caso necesita pedirle al modelo que genere de nuevo, no
 // solo reparsear lo mismo — por eso reintenta la llamada completa.
 const callOpenRouterAndParseJson = async (
-    systemPrompt: string, userMessage: string, maxTokens: number, errorLabel: string
+    systemPrompt: string, userMessage: string, maxTokens: number, errorLabel: string, temperature?: number
 ): Promise<any> => {
     let lastError: any = null;
     for (let attempt = 1; attempt <= 2; attempt++) {
-        const text = await callOpenRouter(systemPrompt, userMessage, true, maxTokens);
+        const text = await callOpenRouter(systemPrompt, userMessage, true, maxTokens, temperature);
         try {
             return extractJson(text, errorLabel);
         } catch (err) {
@@ -165,7 +166,40 @@ const modeDescription = (mode: EnergyMode): string => {
     }
 };
 
-export const generateDailyPlan = async (blueprint: any, energyLevel: number, userName?: string, language?: string): Promise<any> => {
+// Sin contexto del día, el modelo recibe exactamente lo mismo cada mañana
+// (blueprint + energía) y devuelve casi las mismas tarjetas siempre. Para
+// que el plan varíe se le pasa: la fecha, un área de vida "foco" que rota
+// día a día, y las tareas de los últimos días para que no las repita.
+export interface DailyPlanContext {
+    date?: string;               // 'YYYY-MM-DD'
+    recentTasks?: string[];      // tareas de días anteriores (más reciente primero)
+}
+
+const WEEKDAYS_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+
+// Rota de forma determinística por fecha, para que cada día (no cada
+// llamada) tenga su foco y 5 días seguidos cubran las 5 áreas.
+export const focusAreaForDate = (date: string): LifeArea => {
+    const dayNumber = Math.floor(Date.parse(`${date}T00:00:00Z`) / 86_400_000);
+    const index = ((dayNumber % LIFE_AREAS.length) + LIFE_AREAS.length) % LIFE_AREAS.length;
+    return LIFE_AREAS[index]!;
+};
+
+const dayContextNote = (ctx?: DailyPlanContext): string => {
+    const notes: string[] = [];
+    if (ctx?.date && !Number.isNaN(Date.parse(`${ctx.date}T00:00:00Z`))) {
+        const weekday = WEEKDAYS_ES[new Date(`${ctx.date}T00:00:00Z`).getUTCDay()];
+        const focus = focusAreaForDate(ctx.date);
+        notes.push(`Fecha de hoy: ${ctx.date} (${weekday}). Ten en cuenta el día de la semana (p. ej. fin de semana = más espacio para relaciones, ocio, naturaleza o proyectos personales).`);
+        notes.push(`ÁREA FOCO DE HOY: "${focus.label}" (clave "${focus.key}"). Al menos una tarea de "midday" debe avanzar una meta de esta área de forma concreta; el resto del plan puede tocar otras áreas.`);
+    }
+    if (ctx?.recentTasks && ctx.recentTasks.length > 0) {
+        notes.push(`Tareas que ya le diste en días recientes (NO las repitas ni con otras palabras; propón acciones nuevas o el siguiente paso lógico de esas metas): ${JSON.stringify(ctx.recentTasks)}`);
+    }
+    return notes.join('\n    ');
+};
+
+export const generateDailyPlan = async (blueprint: any, energyLevel: number, userName?: string, language?: string, context?: DailyPlanContext): Promise<any> => {
     const modeContext = modeDescription(energyMode(energyLevel));
 
     const nameNote = userName ? `Se llama ${userName}; dirígete a él/ella por su nombre en el saludo, de forma natural (no en cada oración).` : '';
@@ -182,15 +216,20 @@ export const generateDailyPlan = async (blueprint: any, energyLevel: number, use
     - "morning": lo primero que debe hacer al levantarse (rutina, mentalidad, algo pequeño y activador).
     - "midday": tareas para el transcurso del día, las que más avanzan sus metas activas.
     - "night": cierre del día (reflexión breve, descanso, preparación para mañana).
-    - Cada lista debe tener entre 1 y 4 tareas según el nivel de energía (menos y más simples si la energía es baja).
+    - Cantidad de tareas por lista según la energía: MODO REFUGIO 1-2; RITMO ESTABLE 2-4; ALTA ENERGÍA 3-5.
     - Todas las tareas deben conectar con al menos una meta del blueprint, nunca genéricas o vacías.
+    - VARIEDAD: el plan de hoy debe sentirse distinto al de días anteriores. Reparte las tareas entre varias áreas de vida (salud, carrera/finanzas, relaciones, crecimiento, propósito) y mezcla tipos de acción: física, aprendizaje, social/contacto con alguien, creativa, organización/finanzas, reflexión, descanso o disfrute. Solo los hábitos base de su rutina ideal pueden repetirse, y aun así cambia el enfoque o el detalle (p. ej. otro tipo de ejercicio, otro tema de lectura).
+    - Sé específico: en vez de "haz ejercicio" di qué, cuánto o dónde; en vez de "avanza tu proyecto" di el paso concreto.
     ${languageDirective(language)}`;
 
     const userPrompt = `Life Blueprint del usuario: ${JSON.stringify(blueprint)}
     HOY: el usuario reporta un nivel de energía matutino de ${energyLevel}/5. Contexto: ${modeContext}
+    ${dayContextNote(context)}
     Genera el plan completo del día (morning/midday/night) siguiendo el formato indicado.`;
 
-    return callOpenRouterAndParseJson(systemPrompt, userPrompt, 2000, 'daily plan');
+    // Temperatura algo más alta que el default para favorecer variedad
+    // entre días sin perder coherencia con el blueprint.
+    return callOpenRouterAndParseJson(systemPrompt, userPrompt, 2500, 'daily plan', 0.9);
 };
 
 export const generateMidDayAdjustment = async (blueprint: any, morningEnergy: number, middayEnergy: number, dailyPlan: any, language?: string): Promise<string> => {
