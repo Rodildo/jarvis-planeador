@@ -128,7 +128,7 @@ describe('language directive', () => {
         await generateDailyPlan({ areas: {} }, 3, 'Jorge', 'en');
 
         const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
-        expect(requestBody.messages[0].content).toContain('Respond only in English');
+        expect(requestBody.messages[0].content).toContain('Never answer in Spanish');
     });
 
     it('defaults to Spanish when no language is given', async () => {
@@ -165,5 +165,24 @@ describe('language directive', () => {
         const days = ['2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24', '2026-09-25'];
         const keys = new Set(days.map(d => focusAreaForDate(d).key));
         expect(keys.size).toBe(LIFE_AREAS.length);
+    });
+
+    it('puts the English directive at the start of the system prompt and the end of the user prompt, for every AI call', async () => {
+        const fetchMock = jest.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ choices: [{ message: { content: '{"greeting": "hi", "morning": [], "midday": [], "night": [], "message": "m"}' } }] })
+        });
+        global.fetch = fetchMock as unknown as typeof fetch;
+
+        await generateBlueprint({}, undefined, 'en');
+        await generateDailyPlan({ areas: {} }, 3, 'Jane', 'en', { date: '2026-09-25' });
+        await generateMidDayReplan({ areas: {} }, 1, {}, 'Jane', 'en');
+
+        for (const call of fetchMock.mock.calls) {
+            const [system, user] = JSON.parse(call[1].body).messages;
+            expect(system.content.startsWith('LANGUAGE: The user uses the app in ENGLISH')).toBe(true);
+            expect(user.content.trimEnd().endsWith('Never answer in Spanish.')).toBe(true);
+        }
+        expect(JSON.parse(fetchMock.mock.calls[1][1].body).messages[1].content).toContain('2026-09-25 (Friday)');
     });
 });

@@ -116,7 +116,19 @@ const callOpenRouterAndParseJson = async (
 // mensajes) salga en el mismo idioma que el resto de la app — no solo la
 // interfaz estática, también lo que genera el modelo.
 const languageDirective = (language?: string): string =>
-    language === 'en' ? 'Respond only in English, in every text field of your JSON output.' : 'Responde solo en español, en cada campo de texto de tu salida JSON.';
+    language === 'en'
+        ? 'LANGUAGE: The user uses the app in ENGLISH. Write every piece of text you output (greeting, tasks, reasons, messages, summaries, goals) in natural English, even though these instructions, the examples and the user data below may be written in Spanish. Never answer in Spanish.'
+        : 'IDIOMA: Responde solo en español, en todo el texto que generes.';
+
+// Todo el prompt está escrito en español, y con una sola línea al final
+// pidiendo inglés el modelo tendía a seguir el idioma del prompt y
+// responder en español a usuarios que eligieron inglés. Por eso la
+// directiva va al inicio del system prompt y se repite al final del user
+// prompt (lo último que lee el modelo antes de responder).
+const localize = (systemPrompt: string, userPrompt: string, language?: string): [string, string] => [
+    `${languageDirective(language)}\n\n${systemPrompt}`,
+    `${userPrompt}\n\n${languageDirective(language)}`,
+];
 
 export const generateBlueprint = async (answers: any, previousBlueprint?: any, language?: string): Promise<any> => {
     const areaKeys = LIFE_AREAS.map(a => `"${a.key}"`).join(', ');
@@ -129,7 +141,7 @@ export const generateBlueprint = async (answers: any, previousBlueprint?: any, l
         },
         "daily_routine": "Descripción de cómo debería verse un día ideal para esta persona, en 2-3 frases"
     }
-    Las claves dentro de "areas" deben ser exactamente estas: ${areaKeys}. Cada área debe tener entre 2 y 4 metas concretas y accionables basadas en las respuestas del usuario. ${languageDirective(language)}`;
+    Las claves dentro de "areas" deben ser exactamente estas: ${areaKeys}. Cada área debe tener entre 2 y 4 metas concretas y accionables basadas en las respuestas del usuario.`;
 
     const updateNote = previousBlueprint
         ? `\nEste es un plan de vida EXISTENTE que el usuario está actualizando en su re-brief mensual. Blueprint anterior: ${JSON.stringify(previousBlueprint)}. Evoluciona y actualiza las metas en vez de ignorar lo anterior: conserva lo que sigue vigente y ajusta o reemplaza lo que cambió según las nuevas respuestas.`
@@ -137,7 +149,7 @@ export const generateBlueprint = async (answers: any, previousBlueprint?: any, l
 
     const userPrompt = `Respuestas del usuario a las ${TOTAL_ONBOARDING_QUESTIONS} preguntas: ${JSON.stringify(answers)}${updateNote}`;
 
-    return callOpenRouterAndParseJson(systemPrompt, userPrompt, 3000, 'blueprint');
+    return callOpenRouterAndParseJson(...localize(systemPrompt, userPrompt, language), 3000, 'blueprint');
 };
 
 // Los mismos 3 baldes de energía se usan para decidir el tono del plan
@@ -176,6 +188,7 @@ export interface DailyPlanContext {
 }
 
 const WEEKDAYS_ES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const WEEKDAYS_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 // Rota de forma determinística por fecha, para que cada día (no cada
 // llamada) tenga su foco y 5 días seguidos cubran las 5 áreas.
@@ -185,10 +198,10 @@ export const focusAreaForDate = (date: string): LifeArea => {
     return LIFE_AREAS[index]!;
 };
 
-const dayContextNote = (ctx?: DailyPlanContext): string => {
+const dayContextNote = (ctx?: DailyPlanContext, language?: string): string => {
     const notes: string[] = [];
     if (ctx?.date && !Number.isNaN(Date.parse(`${ctx.date}T00:00:00Z`))) {
-        const weekday = WEEKDAYS_ES[new Date(`${ctx.date}T00:00:00Z`).getUTCDay()];
+        const weekday = (language === 'en' ? WEEKDAYS_EN : WEEKDAYS_ES)[new Date(`${ctx.date}T00:00:00Z`).getUTCDay()];
         const focus = focusAreaForDate(ctx.date);
         notes.push(`Fecha de hoy: ${ctx.date} (${weekday}). Ten en cuenta el día de la semana (p. ej. fin de semana = más espacio para relaciones, ocio, naturaleza o proyectos personales).`);
         notes.push(`ÁREA FOCO DE HOY: "${focus.label}" (clave "${focus.key}"). Al menos una tarea de "midday" debe avanzar una meta de esta área de forma concreta; el resto del plan puede tocar otras áreas.`);
@@ -219,29 +232,28 @@ export const generateDailyPlan = async (blueprint: any, energyLevel: number, use
     - Cantidad de tareas por lista según la energía: MODO REFUGIO 1-2; RITMO ESTABLE 2-4; ALTA ENERGÍA 3-5.
     - Todas las tareas deben conectar con al menos una meta del blueprint, nunca genéricas o vacías.
     - VARIEDAD: el plan de hoy debe sentirse distinto al de días anteriores. Reparte las tareas entre varias áreas de vida (salud, carrera/finanzas, relaciones, crecimiento, propósito) y mezcla tipos de acción: física, aprendizaje, social/contacto con alguien, creativa, organización/finanzas, reflexión, descanso o disfrute. Solo los hábitos base de su rutina ideal pueden repetirse, y aun así cambia el enfoque o el detalle (p. ej. otro tipo de ejercicio, otro tema de lectura).
-    - Sé específico: en vez de "haz ejercicio" di qué, cuánto o dónde; en vez de "avanza tu proyecto" di el paso concreto.
-    ${languageDirective(language)}`;
+    - Sé específico: en vez de "haz ejercicio" di qué, cuánto o dónde; en vez de "avanza tu proyecto" di el paso concreto.`;
 
     const userPrompt = `Life Blueprint del usuario: ${JSON.stringify(blueprint)}
     HOY: el usuario reporta un nivel de energía matutino de ${energyLevel}/5. Contexto: ${modeContext}
-    ${dayContextNote(context)}
+    ${dayContextNote(context, language)}
     Genera el plan completo del día (morning/midday/night) siguiendo el formato indicado.`;
 
     // Temperatura algo más alta que el default para favorecer variedad
     // entre días sin perder coherencia con el blueprint.
-    return callOpenRouterAndParseJson(systemPrompt, userPrompt, 2500, 'daily plan', 0.9);
+    return callOpenRouterAndParseJson(...localize(systemPrompt, userPrompt, language), 2500, 'daily plan', 0.9);
 };
 
 export const generateMidDayAdjustment = async (blueprint: any, morningEnergy: number, middayEnergy: number, dailyPlan: any, language?: string): Promise<string> => {
     const systemPrompt = `Eres Jarvis. Dame un mensaje corto, empático y adaptativo para la tarde.
-    Devuelve SOLO el texto del mensaje directamente, como si se lo dijeras en el chat. ${languageDirective(language)}`;
+    Devuelve SOLO el texto del mensaje directamente, como si se lo dijeras en el chat.`;
 
     const userPrompt = `Esta mañana el usuario tenía energía ${morningEnergy}/5 y su plan del día era: ${JSON.stringify(dailyPlan)}.
     Han pasado varias horas. Su energía AHORA es ${middayEnergy}/5.
     Si la energía bajó drásticamente, dile que es hora de parar y priorizar el descanso, y que simplifique las tareas de la tarde/noche.
     Si la energía subió o se mantiene bien, dale un pequeño empujón motivacional para las tareas de "midday"/"night" pendientes, recordándole cuidar su ciclo de sueño.`;
 
-    return await callOpenRouter(systemPrompt, userPrompt, false, 300);
+    return await callOpenRouter(...localize(systemPrompt, userPrompt, language), false, 300);
 };
 
 // Se usa en vez de generateMidDayAdjustment cuando el nivel de energía a
@@ -265,14 +277,13 @@ export const generateMidDayReplan = async (
     Reglas:
     - Cada lista debe tener entre 1 y 4 tareas según el nuevo nivel de energía (menos y más simples si bajó, pueden ser más ambiciosas si subió).
     - Todas las tareas deben conectar con al menos una meta del blueprint, nunca genéricas o vacías.
-    - Si la energía bajó mucho, prioriza descanso y lo mínimo indispensable, sin culpa.
-    ${languageDirective(language)}`;
+    - Si la energía bajó mucho, prioriza descanso y lo mínimo indispensable, sin culpa.`;
 
     const userPrompt = `Life Blueprint del usuario: ${JSON.stringify(blueprint)}
     Plan original de hoy (su "midday"/"night" ya no están vigentes): ${JSON.stringify(currentPlan)}
     Nueva energía reportada a mitad del día: ${middayEnergy}/5. Contexto: ${modeContext}
     Genera el ajuste de "midday" y "night" siguiendo el formato indicado.`;
 
-    return callOpenRouterAndParseJson(systemPrompt, userPrompt, 1800, 'midday replan');
+    return callOpenRouterAndParseJson(...localize(systemPrompt, userPrompt, language), 1800, 'midday replan');
 };
 
