@@ -61,6 +61,7 @@ const Map<String, String> stringsEn = {
   'login.copyright': '© 2026 Kinetiqsystem. All rights reserved.',
   'login.acceptPrefix': 'I accept the ',
   'login.legalLinkText': 'Privacy Policy and Terms of Use',
+  'login.accountCreatedSuccess': 'Account created successfully!',
 
   // widgets/jarvis_drawer.dart
   'drawer.defaultUser': 'Jarvis User',

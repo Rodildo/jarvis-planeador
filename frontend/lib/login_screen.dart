@@ -68,13 +68,30 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    final wasRegisterMode = _isRegisterMode;
     final success = _isRegisterMode
         ? await auth.register(email, password, firstName, lastName)
         : await auth.login(email, password);
 
     if (!success || !mounted) return;
 
-    final hasBlueprint = _isRegisterMode ? false : await ApiService().checkProfile();
+    if (wasRegisterMode) {
+      // Antes se pasaba directo del formulario al brief sin ninguna
+      // confirmación visible de que la cuenta sí se creó. Se muestra
+      // brevemente y se espera a que se vea antes de navegar, porque
+      // context.go reemplaza esta pantalla (y con ella cualquier SnackBar).
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(t('login.accountCreatedSuccess')),
+          backgroundColor: const Color(0xFF00C853),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      await Future.delayed(const Duration(milliseconds: 900));
+      if (!mounted) return;
+    }
+
+    final hasBlueprint = wasRegisterMode ? false : await ApiService().checkProfile();
     if (hasBlueprint) {
       // Sin esto, el próximo arranque en frío no tiene forma local de saber
       // que este usuario ya tiene blueprint: dependería de que /profile

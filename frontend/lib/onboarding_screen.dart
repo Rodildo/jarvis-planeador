@@ -69,6 +69,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void _submit(OnboardingProvider provider) {
     final text = _controller.text;
     _controller.clear();
+    // Antes, enviar el campo vacío no hacía nada (submitAnswer descarta
+    // texto vacío en silencio) — se sentía como un botón roto. Ahora se
+    // trata igual que "Saltar pregunta": el usuario puede dejarla en
+    // blanco y seguir adelante sin tener que encontrar el botón de saltar.
+    if (text.trim().isEmpty) {
+      _skip(provider);
+      return;
+    }
     _submitDirect(provider, text);
   }
 
