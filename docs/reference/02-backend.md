@@ -70,7 +70,7 @@ Todos bajo el prefijo `/api`. 🔓 = público. 🔒 = requiere `Authorization: B
 
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
-| POST | `/daily-plan` | 🔒 + `aiCostLimiter` | `{ date, energyLevel, language }` → guarda `energy_morning`, genera el plan de 3 bloques con la IA en el idioma pedido (usa el nombre del usuario para el saludo) |
+| POST | `/daily-plan` | 🔒 + `aiCostLimiter` | `{ date, energyLevel, language }` → guarda `energy_morning`, genera el plan de 3 bloques con la IA en el idioma pedido (usa el nombre del usuario para el saludo). Para que el plan varíe entre días, le pasa también a la IA la fecha y las tareas de los últimos días (`getRecentDailyLogs(userId, 6)` → `extractRecentTasks`, hasta 40 títulos, sin contar hoy) — ver [06-decisions.md](06-decisions.md) |
 | POST | `/daily-actions` | 🔒 | `{ date, actions }` — `actions` es el estado completo del día (plan + tareas completadas + tareas manuales), se sobreescribe entero en cada cambio, no hay merge parcial |
 | GET | `/daily-log/:date` | 🔒 | La fila cruda de `daily_logs` para esa fecha |
 | POST | `/midday` | 🔒 + `aiCostLimiter` | `{ date, energyLevel, language }` → guarda `energy_midday`. Si el nivel de energía sigue en el mismo "balde" (Refugio/Estable/Expansión) que el de la mañana, devuelve solo `{ message }` con un mensaje de ajuste. Si cruzó a un balde distinto, regenera `midday`/`night` con la IA, descarta los `completed` de esos bloques (ya no corresponden a las tareas nuevas) y devuelve `{ message, plan, completed }` — el plan actualizado ya queda persistido en `actions_chosen` |
@@ -147,13 +147,13 @@ No hay sistema de migraciones real. El patrón usado es: `CREATE TABLE IF NOT EX
 
 Funciones exportadas, todas detalladas con su prompt completo en el archivo fuente:
 - `generateBlueprint(answers, previousBlueprint?, language?)`
-- `generateDailyPlan(blueprint, energyLevel, userName?, language?)`
+- `generateDailyPlan(blueprint, energyLevel, userName?, language?, context?)` — `context = { date, recentTasks }`: agrega al prompt la fecha y el día de la semana, un **área foco del día** (`focusAreaForDate(date)`, rota por fecha entre las 5 áreas de `LIFE_AREAS`) y la lista de tareas recientes con la orden de no repetirlas. Pide variedad de áreas y tipos de acción, 1-2 / 2-4 / 3-5 tareas por bloque según el balde de energía, y usa `temperature: 0.9` (único call con temperatura explícita)
 - `generateMidDayAdjustment(blueprint, morningEnergy, middayEnergy, dailyPlan, language?)` — mensaje corto, no toca el plan
 - `generateMidDayReplan(blueprint, middayEnergy, currentPlan, userName?, language?)` — regenera `midday`/`night` + mensaje, cuando el balde de energía cambió (ver [06-decisions.md](06-decisions.md))
 - `energyModeChanged(levelA, levelB)` — helper compartido: compara dos niveles 1-5 contra los 3 baldes (Refugio ≤2 / Estable =3 / Expansión ≥4) usados tanto por `generateDailyPlan` como por la decisión de `/midday` de regenerar o no
 
-Todos los `language?` son `'es'` \| `'en'`, opcionales (default español) — el helper interno `languageDirective(language)` arma una instrucción ("Responde solo en español" / "Respond only in English") que se agrega al final de cada `systemPrompt`. Viene del idioma que el usuario eligió una sola vez en el primer arranque de la app (ver [03-frontend.md](03-frontend.md)), no de configuración de cuenta en el backend.
+Todos los `language?` son `'es'` \| `'en'`, opcionales (default español) — el helper interno `languageDirective(language)` arma la instrucción de idioma y `localize(systemPrompt, userPrompt, language)` la pone **al inicio del system prompt y otra vez al final del user prompt**, en las 4 llamadas. La versión en inglés dice explícitamente que ignore que las instrucciones y los datos estén en español — con una sola línea al final del system prompt, el modelo seguía el idioma del prompt y le respondía en español a usuarios en inglés (ver [06-decisions.md](06-decisions.md)). Viene del idioma que el usuario eligió una sola vez en el primer arranque de la app (ver [03-frontend.md](03-frontend.md)), no de configuración de cuenta en el backend.
 
 ## Tests
 
-`backend/tests/`, con Jest. 11 suites, 53 tests a la fecha de este documento. Corren con `npm test`. Cobertura: auth (registro/login/cambio de contraseña/rate limiting/trust proxy), cuenta (perfil/avatar/eliminar), rutas de brief/blueprint/daily-plan/midday/notas, capa de IA (mockeada, incluida la instrucción de idioma), y la capa de base de datos (incluye que las notas no se filtren entre cuentas y que se borren en cascada al eliminar la cuenta).
+`backend/tests/`, con Jest. 11 suites, 57 tests a la fecha de este documento. Corren con `npm test`. Cobertura: auth (registro/login/cambio de contraseña/rate limiting/trust proxy), cuenta (perfil/avatar/eliminar), rutas de brief/blueprint/daily-plan/midday/notas, capa de IA (mockeada, incluida la instrucción de idioma), y la capa de base de datos (incluye que las notas no se filtren entre cuentas y que se borren en cascada al eliminar la cuenta).
