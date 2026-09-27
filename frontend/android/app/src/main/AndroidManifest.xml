@@ -1,8 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Permite solicitar explícitamente el permiso de notificaciones en Android 13+ -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- Permite que flutter_local_notifications re-agende los recordatorios
          diarios/de mitad de día si el dispositivo se reinicia. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- Permite programar alarmas exactas en segundo plano -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
     <application
         android:label="Jarvis Planeador"
         android:name="${applicationName}"

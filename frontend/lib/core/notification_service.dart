@@ -94,6 +94,24 @@ class NotificationService {
     }
   }
 
+  // Alarma exacta solo si el sistema la permite: en Android 12+ requiere el
+  // permiso SCHEDULE_EXACT_ALARM, que en Android 14 viene negado por
+  // defecto en instalaciones nuevas. Pedir exacta sin permiso lanza
+  // excepción, _safeSchedule se la traga, y la notificación simplemente no
+  // se agendaría — por eso ahí se cae a inexacta (llega con unos minutos de
+  // margen, pero llega).
+  Future<AndroidScheduleMode> _scheduleMode() async {
+    try {
+      final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      if (android != null && await android.canScheduleExactNotifications() != true) {
+        return AndroidScheduleMode.inexactAllowWhileIdle;
+      }
+    } catch (_) {
+      return AndroidScheduleMode.inexactAllowWhileIdle;
+    }
+    return AndroidScheduleMode.exactAllowWhileIdle;
+  }
+
   Future<TimeOfDay> getMorningTime() async {
     final prefs = await SharedPreferences.getInstance();
     return TimeOfDay(hour: prefs.getInt(_morningHourKey) ?? 8, minute: prefs.getInt(_morningMinuteKey) ?? 0);
@@ -142,13 +160,13 @@ class NotificationService {
             ),
             iOS: const DarwinNotificationDetails(),
           ),
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          androidScheduleMode: await _scheduleMode(),
           matchDateTimeComponents: DateTimeComponents.time,
           payload: 'morning',
         );
       });
 
-  Future<void> scheduleMiddayCheck(Duration delay) => _safeSchedule('scheduleMiddayCheck', () => _plugin.zonedSchedule(
+  Future<void> scheduleMiddayCheck(Duration delay) => _safeSchedule('scheduleMiddayCheck', () async => _plugin.zonedSchedule(
         id: _middayNotificationId,
         title: _isEnglish ? 'Midday check-in' : 'Chequeo de mitad de día',
         body: _isEnglish ? "6 hours have passed. How's your energy now?" : 'Han pasado 6 horas. ¿Cómo está tu energía ahora?',
@@ -163,7 +181,7 @@ class NotificationService {
           ),
           iOS: const DarwinNotificationDetails(),
         ),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        androidScheduleMode: await _scheduleMode(),
         payload: 'midday',
       ));
 
@@ -189,7 +207,7 @@ class NotificationService {
             ),
             iOS: const DarwinNotificationDetails(),
           ),
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          androidScheduleMode: await _scheduleMode(),
           matchDateTimeComponents: DateTimeComponents.time,
           payload: 'night',
         );
