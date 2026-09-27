@@ -495,8 +495,14 @@ class ApiService {
   /// mandaría al usuario a pedir energía de nuevo y, si la responde,
   /// generaría un plan nuevo que pisa el de verdad. Reintenta un par de
   /// veces antes de rendirse.
+  /// Devuelve null SOLO cuando el backend confirmó que hoy no hay registro.
+  /// Si no se pudo confirmar (sin red, timeout, error del servidor — p. ej.
+  /// mientras se redespliega) lanza excepción: quien llama necesita
+  /// distinguir "no hay nada hoy" de "no sé", porque en el segundo caso
+  /// pedir energía de nuevo podría pisar un plan real.
   Future<Map<String, dynamic>?> getTodayLog() async {
     final date = DateTime.now().toIso8601String().split('T')[0];
+    Object? lastError;
     for (int attempt = 1; attempt <= 3; attempt++) {
       try {
         final response = await http.get(Uri.parse('$baseUrl/daily-log/$date'), headers: _headers).timeout(_defaultTimeout, onTimeout: _timeoutError);
@@ -504,13 +510,14 @@ class ApiService {
         if (response.statusCode == 200) {
           return jsonDecode(response.body)['dailyLog'];
         }
-        return null;
+        throw Exception('daily-log respondió ${response.statusCode}');
       } catch (e) {
+        lastError = e;
         print('Get today log error (intento $attempt): $e');
         if (attempt < 3) await Future.delayed(const Duration(milliseconds: 800));
       }
     }
-    return null;
+    throw Exception('No se pudo confirmar el registro de hoy: $lastError');
   }
 
   // Future en curso, compartido entre llamadas simultáneas a getHistory

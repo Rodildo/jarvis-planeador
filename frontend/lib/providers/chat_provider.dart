@@ -74,8 +74,12 @@ class ChatProvider extends ChangeNotifier {
     await _loadLastEnergyCheck();
 
     Map<String, dynamic>? log;
+    // true si el backend respondió de verdad (aunque hoy no haya nada);
+    // false si no se pudo confirmar por red/servidor (ver getTodayLog).
+    bool confirmedByBackend = false;
     try {
       log = await _api.getTodayLog();
+      confirmedByBackend = true;
     } catch (_) {
       log = null;
     }
@@ -121,8 +125,19 @@ class ChatProvider extends ChangeNotifier {
       return;
     }
 
-    // Ni el backend ni el respaldo local tenían nada que restaurar: de
-    // verdad no hay más remedio que pedir energía desde cero. Como límite
+    // El backend confirmó que hoy no hay plan ni energía guardada: pedir
+    // energía es seguro (no hay nada real que pisar), así que no aplica el
+    // límite de abajo. Antes el límite se aplicaba también aquí, y si el
+    // primer intento de generar el plan fallaba antes de llegar al backend
+    // (p. ej. servidor redesplegándose), la app se quedaba atascada en
+    // "No pude confirmar tu plan" y "Reintentar" nunca salía de ahí.
+    if (confirmedByBackend) {
+      isLoading = false;
+      notifyListeners();
+      return;
+    }
+
+    // No se pudo confirmar con el backend ni había respaldo local. Como límite
     // duro para que un problema repetido (de red o lo que sea) nunca
     // convierta esto en una pantalla que reaparece sin parar: como mucho
     // dos veces al día, con al menos 8 horas de diferencia entre una y
