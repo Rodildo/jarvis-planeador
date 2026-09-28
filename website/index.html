@@ -1,179 +1,577 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Jarvis Planeador — Tu test de vida, tu plan de cada día</title>
-  <meta name="description" content="Jarvis Planeador es tu test de vocación y estilo de vida: descubre tu Life Blueprint y recibe cada día un plan de tareas adaptado a tu energía para alcanzar lo que quieres. Disponible para Android." />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>jotaelebundle — ChattFlow y Jarvis Planeador</title>
+  <meta
+    name="description"
+    content="Dos apps para Android de Jorge Castillo (Kinetiqsystem): ChattFlow, tu asistente de IA para atender WhatsApp, y Jarvis Planeador, tu test de vida y plan diario."
+  />
   <link rel="canonical" href="https://www.jotaelebundle.com/" />
   <meta name="robots" content="index, follow" />
 
   <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Jarvis Planeador" />
+  <meta property="og:site_name" content="jotaelebundle" />
   <meta property="og:locale" content="es_ES" />
   <meta property="og:url" content="https://www.jotaelebundle.com/" />
-  <meta property="og:title" content="Jarvis Planeador — Tu test de vida, tu plan de cada día" />
-  <meta property="og:description" content="Descubre tu Life Blueprint y recibe cada día un plan de tareas adaptado a tu energía para alcanzar lo que quieres. Disponible para Android." />
+  <meta property="og:title" content="jotaelebundle — ChattFlow y Jarvis Planeador" />
+  <meta property="og:description" content="Dos apps para Android de Jorge Castillo (Kinetiqsystem): ChattFlow, tu asistente de IA para atender WhatsApp, y Jarvis Planeador, tu test de vida y plan diario." />
   <meta property="og:image" content="https://www.jotaelebundle.com/assets/logo.png" />
 
   <meta name="twitter:card" content="summary" />
-  <meta name="twitter:title" content="Jarvis Planeador — Tu test de vida, tu plan de cada día" />
-  <meta name="twitter:description" content="Descubre tu Life Blueprint y recibe cada día un plan de tareas adaptado a tu energía para alcanzar lo que quieres. Disponible para Android." />
+  <meta name="twitter:title" content="jotaelebundle — ChattFlow y Jarvis Planeador" />
+  <meta name="twitter:description" content="Dos apps para Android de Jorge Castillo (Kinetiqsystem): ChattFlow y Jarvis Planeador." />
   <meta name="twitter:image" content="https://www.jotaelebundle.com/assets/logo.png" />
 
   <link rel="icon" type="image/png" href="assets/logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css" />
+
+  <link rel="stylesheet" href="css/jarvis-embed.css" />
+  <link rel="stylesheet" href="css/chatflow-embed.css" />
+
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "MobileApplication",
-    "name": "Jarvis Planeador",
-    "operatingSystem": "Android",
-    "applicationCategory": "LifestyleApplication",
-    "description": "Test de vocación y estilo de vida que genera tu Life Blueprint y un plan diario de tareas adaptado a tu energía.",
-    "url": "https://www.jotaelebundle.com/",
-    "downloadUrl": "https://github.com/Rodildo/jarvis-planeador/releases/latest/download/jarvis-planeador.apk",
-    "image": "https://www.jotaelebundle.com/assets/logo.png",
-    "author": {
-      "@type": "Organization",
-      "name": "Kinetiqsystem"
-    },
-    "offers": {
-      "@type": "Offer",
-      "price": "0",
-      "priceCurrency": "USD"
-    }
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://www.jotaelebundle.com/#org",
+        "name": "Kinetiqsystem",
+        "url": "https://www.jotaelebundle.com/"
+      },
+      {
+        "@type": "MobileApplication",
+        "name": "ChattFlow",
+        "operatingSystem": "Android",
+        "applicationCategory": "BusinessApplication",
+        "description": "Monta tu propio asistente de IA para atender WhatsApp, sin escribir una línea de código.",
+        "url": "https://www.jotaelebundle.com/#chatflow",
+        "downloadUrl": "https://github.com/Rodildo/whatsapp-manager-bot-apk/releases/latest",
+        "author": { "@id": "https://www.jotaelebundle.com/#org" }
+      },
+      {
+        "@type": "MobileApplication",
+        "name": "Jarvis Planeador",
+        "operatingSystem": "Android",
+        "applicationCategory": "LifestyleApplication",
+        "description": "Test de vocación y estilo de vida que genera tu Life Blueprint y un plan diario de tareas adaptado a tu energía.",
+        "url": "https://www.jotaelebundle.com/#jarvis",
+        "downloadUrl": "https://github.com/Rodildo/jarvis-planeador/releases/latest/download/jarvis-planeador.apk",
+        "image": "https://www.jotaelebundle.com/assets/logo.png",
+        "author": { "@id": "https://www.jotaelebundle.com/#org" },
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    ]
   }
   </script>
+
+  <style>
+    /* Reset mínimo compartido — cada producto de abajo trae su propio diseño
+       (ver css/chatflow-embed.css y css/jarvis-embed.css, cada uno aislado
+       con @scope para no mezclarse con el otro). */
+    html { scroll-behavior: smooth; }
+    body { margin: 0; }
+
+    /* ---------- Selector de proyectos (hub) ---------- */
+    .hub {
+      background: #0b0f1a;
+      color: #f4f6f8;
+      padding: 56px 24px 44px;
+      text-align: center;
+      font-family: 'Inter', -apple-system, "Segoe UI", sans-serif;
+    }
+    .hub-eyebrow {
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9aa4b2;
+      margin: 0 0 10px;
+    }
+    .hub-title {
+      font-family: 'Outfit', 'Inter', sans-serif;
+      font-size: clamp(1.4rem, 3vw, 1.9rem);
+      margin: 0 0 8px;
+    }
+    .hub-lead {
+      color: #c3cad3;
+      max-width: 46ch;
+      margin: 0 auto 32px;
+      font-size: 0.98rem;
+    }
+    .hub-cards {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      max-width: 760px;
+      margin: 0 auto;
+    }
+    .hub-card {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+      text-align: left;
+      text-decoration: none;
+      color: inherit;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      padding: 22px 22px 20px;
+      transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+    .hub-card:hover {
+      transform: translateY(-3px);
+      background: rgba(255, 255, 255, 0.07);
+    }
+    .hub-card-chatflow:hover { border-color: #2563EB; }
+    .hub-card-jarvis:hover { border-color: #00E5FF; }
+    .hub-card-badge {
+      width: 40px;
+      height: 40px;
+      border-radius: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+    }
+    .hub-card-chatflow .hub-card-badge { background: #2563EB; color: #fff; }
+    .hub-card-jarvis .hub-card-badge { background: #00E5FF; color: #05131f; }
+    .hub-card h3 {
+      margin: 0;
+      font-size: 1.08rem;
+      font-family: 'Outfit', 'Inter', sans-serif;
+    }
+    .hub-card p {
+      margin: 0;
+      font-size: 0.88rem;
+      color: #aeb6c2;
+      line-height: 1.5;
+    }
+    .hub-card-cta {
+      margin-top: 4px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .hub-card-chatflow .hub-card-cta { color: #5b8def; }
+    .hub-card-jarvis .hub-card-cta { color: #00E5FF; }
+
+    @media (max-width: 600px) {
+      .hub-cards { grid-template-columns: 1fr; }
+    }
+
+    /* ---------- Divisor entre proyectos ---------- */
+    .bundle-divider {
+      background: #0b0f1a;
+      color: #dfe4ea;
+      text-align: center;
+      padding: 30px 24px;
+      font-family: 'Inter', -apple-system, "Segoe UI", sans-serif;
+    }
+    .bundle-divider span {
+      display: block;
+      font-size: 0.78rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #8a93a3;
+      margin-bottom: 6px;
+    }
+    .bundle-divider a {
+      color: #f4f6f8;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1.05rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+      padding-bottom: 2px;
+    }
+    .bundle-divider a:hover { border-color: #00E5FF; color: #00E5FF; }
+  </style>
 </head>
 <body>
 
-  <div class="bg-decor" aria-hidden="true">
-    <div class="orb orb-cyan"></div>
-    <div class="orb orb-pink"></div>
-    <div class="orb orb-gold"></div>
-    <div class="bg-grid"></div>
-    <div class="stars" id="stars"></div>
-  </div>
-
-  <header class="nav">
-    <div class="nav-inner">
-      <a href="#top" class="brand">
-        <img src="assets/logo.png" alt="Jarvis Planeador" class="brand-logo" />
-        <span class="brand-name">JARVIS PLANEADOR<span class="beta-tag">Beta</span></span>
+  <section class="hub" id="hub" aria-label="Elige un proyecto">
+    <p class="hub-eyebrow">Kinetiqsystem</p>
+    <h1 class="hub-title">Dos apps, un solo lugar</h1>
+    <p class="hub-lead">Elige a cuál quieres entrar — o sigue bajando y las ves las dos, una tras otra.</p>
+    <div class="hub-cards">
+      <a class="hub-card hub-card-chatflow" href="#chatflow">
+        <span class="hub-card-badge" aria-hidden="true">C</span>
+        <h3>ChattFlow</h3>
+        <p>Tu asistente de IA para atender WhatsApp, sin escribir una línea de código.</p>
+        <span class="hub-card-cta">Ver ChattFlow ↓</span>
       </a>
-      <a href="#descargar" class="btn btn-primary btn-nav">Descargar</a>
+      <a class="hub-card hub-card-jarvis" href="#jarvis-top">
+        <span class="hub-card-badge" aria-hidden="true">J</span>
+        <h3>Jarvis Planeador</h3>
+        <p>Tu test de vocación y estilo de vida, con un plan de tareas cada día.</p>
+        <span class="hub-card-cta">Ver Jarvis Planeador ↓</span>
+      </a>
     </div>
-  </header>
+  </section>
 
-  <main>
-    <section class="hero" id="top">
-      <div class="hero-inner">
-        <span class="pill">Test de vocación y estilo de vida · Android</span>
-        <h1>Descubre hacia dónde vas.<br>Vive cada día para llegar.</h1>
-        <p class="hero-lead">
-          Jarvis Planeador es tu test de vocación y estilo de vida: respondes un brief de 50 preguntas,
-          descubres tu <strong>Life Blueprint</strong> (tu visión de vida y tus metas reales), y cada mañana
-          recibes un plan de tareas diseñado para acercarte a lo que quieres — adaptado a la energía que
-          tengas ese día, porque no todos los días son iguales.
-        </p>
-        <div class="hero-ctas">
-          <a href="#descargar" class="btn btn-primary btn-lg">
-            <svg class="icon-android" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85-.29-.15-.65-.06-.83.22l-1.88 3.24a11.463 11.463 0 00-8.94 0L5.65 5.67c-.19-.29-.58-.38-.87-.2-.28.18-.37.54-.22.83L6.4 9.48C3.3 11.25 1.28 14.44 1 18h22c-.28-3.56-2.3-6.75-5.4-8.52zM7 15.25a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5zm10 0a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5z"></path></svg>
+  <div id="chatflow">
+    <header class="site-header">
+      <div class="container">
+        <a class="brand" href="#top">
+          <span class="brand-mark" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M4 12a8 8 0 1 1 3.2 6.4L4 20l1.2-3.6A7.96 7.96 0 0 1 4 12Z"
+                stroke="white"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </span>
+          ChattFlow
+        </a>
+
+        <nav class="site-nav" id="site-nav">
+          <a href="#caracteristicas">Características</a>
+          <a href="#como-funciona">Cómo funciona</a>
+          <a href="#precios">Precios</a>
+          <a href="chatflow-privacidad.html">Privacidad</a>
+          <span class="nav-cta">
+            <a class="btn btn-accent" href="https://github.com/Rodildo/whatsapp-manager-bot-apk/releases/latest">
+              Descargar APK
+            </a>
+          </span>
+        </nav>
+
+        <button class="nav-toggle" id="nav-toggle" aria-label="Abrir menú" aria-expanded="false">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="container">
+          <div class="hero-copy">
+            <span class="eyebrow">Nuevo · Android</span>
+            <h1>Tu propio asistente de IA para atender WhatsApp</h1>
+            <p class="lead">
+              Sin escribir una línea de código. ChattFlow responde a tus clientes 24 horas al día,
+              aprende de tu negocio y tú decides cuándo tomar el control de una conversación.
+            </p>
+            <div class="hero-actions">
+              <a class="btn btn-accent btn-lg" href="https://github.com/Rodildo/whatsapp-manager-bot-apk/releases/latest">
+                Descargar para Android
+              </a>
+              <a class="btn btn-outline btn-lg" href="#como-funciona">Ver cómo funciona</a>
+            </div>
+            <p class="hero-note">Instalación directa (.apk) — próximamente también en Google Play.</p>
+          </div>
+
+          <div class="hero-visual" aria-hidden="true">
+            <div class="phone-mock">
+              <div class="bubble in">Hola, ¿tienen delivery los domingos?</div>
+              <div class="bubble out">¡Sí! Los domingos entregamos de 10am a 6pm. ¿Te paso el menú de hoy?</div>
+              <div class="bubble in">Dale, gracias 🙌</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="caracteristicas" class="section-alt">
+        <div class="container">
+          <div class="section-head">
+            <h2>Todo lo que necesita tu negocio en WhatsApp</h2>
+            <p>Un asistente que conoce tu negocio y una app para llevarlo en el bolsillo.</p>
+          </div>
+
+          <div class="features-grid">
+            <div class="feature-card">
+              <div class="feature-icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v3m0 12v3M4.2 4.2l2.1 2.1m11.4 11.4 2.1 2.1M3 12h3m12 0h3M4.2 19.8l2.1-2.1m11.4-11.4 2.1-2.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.6"/></svg>
+              </div>
+              <h3>Responde solo, 24/7</h3>
+              <p>Tu asistente contesta a tus clientes al instante, incluso cuando estás durmiendo o atendiendo el local.</p>
+            </div>
+
+            <div class="feature-card">
+              <div class="feature-icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 12h6M9 16h6M9 8h3M6 3h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+              </div>
+              <h3>Entrenado con tu negocio</h3>
+              <p>Un cuestionario guiado arma el documento que usa la IA: horarios, precios, zonas de entrega y más.</p>
+            </div>
+
+            <div class="feature-card">
+              <div class="feature-icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 6h16M4 12h10M4 18h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="m17 15 3 3-3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <h3>Edítalo conversando</h3>
+              <p>¿Cambió un precio o un horario? Pídeselo a la IA del editor y revisa el cambio antes de guardarlo. Con historial para volver atrás cuando quieras.</p>
+            </div>
+
+            <div class="feature-card">
+              <div class="feature-icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2v9Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+              </div>
+              <h3>Toma el control cuando quieras</h3>
+              <p>Todos tus chats en un solo lugar. Con un toque pausas al bot y respondes tú mismo esa conversación.</p>
+            </div>
+
+            <div class="feature-card">
+              <div class="feature-icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.6"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              </div>
+              <h3>Capta clientes interesados</h3>
+              <p>Cada conversación relevante queda guardada como un lead, lista para que le des seguimiento.</p>
+            </div>
+
+            <div class="feature-card">
+              <div class="feature-icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="11" width="18" height="10" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M7 11V8a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="1.6"/></svg>
+              </div>
+              <h3>Tu propio número, tu propio bot</h3>
+              <p>Cada negocio tiene su asistente aislado, conectado a su propio WhatsApp por código QR. Nadie más ve tus conversaciones.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="como-funciona">
+        <div class="container">
+          <div class="section-head">
+            <h2>Empezar toma minutos, no días</h2>
+            <p>Así de simple es dejar a ChattFlow respondiendo por ti.</p>
+          </div>
+
+          <div class="steps">
+            <div class="step">
+              <span class="step-number">1</span>
+              <h3>Crea tu cuenta</h3>
+              <p>Descarga la app, regístrate y activa tu plan.</p>
+            </div>
+            <div class="step">
+              <span class="step-number">2</span>
+              <h3>Cuéntale de tu negocio</h3>
+              <p>Un cuestionario corto arma el documento que usará tu asistente.</p>
+            </div>
+            <div class="step">
+              <span class="step-number">3</span>
+              <h3>Escanea el código QR</h3>
+              <p>Conecta tu WhatsApp en segundos, como en WhatsApp Web.</p>
+            </div>
+            <div class="step">
+              <span class="step-number">4</span>
+              <h3>Listo, ya responde solo</h3>
+              <p>Sigue todo desde la app: chats, leads y ajustes cuando quieras.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="precios" class="section-alt">
+        <div class="container">
+          <div class="section-head">
+            <h2>Planes simples</h2>
+            <p>Empieza con lo básico y crece cuando tu negocio lo necesite.</p>
+          </div>
+
+          <div class="pricing-grid">
+            <div class="price-card">
+              <h3>Básico</h3>
+              <p class="price-tag">Precio a confirmar</p>
+              <ul>
+                <li>1 bot conectado a tu WhatsApp</li>
+                <li>Cuestionario y documento del negocio</li>
+                <li>Chats y leads en la app</li>
+              </ul>
+              <a class="btn btn-outline" href="https://github.com/Rodildo/whatsapp-manager-bot-apk/releases/latest">Empezar</a>
+            </div>
+
+            <div class="price-card featured">
+              <h3>Pro</h3>
+              <p class="price-tag">$35 <span style="font-size: 1rem; font-weight: 500;">al mes</span></p>
+              <ul>
+                <li>Mensajes de IA ilimitados</li>
+                <li>1 bot conectado a tu WhatsApp</li>
+                <li>Editor con IA para actualizar tu negocio</li>
+                <li>Soporte prioritario</li>
+              </ul>
+              <a class="btn btn-accent" href="https://github.com/Rodildo/whatsapp-manager-bot-apk/releases/latest">Empezar</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="cta-final">
+        <div class="container">
+          <h2>Deja que ChattFlow atienda tu WhatsApp</h2>
+          <p>Descarga la app en tu Android y ten tu asistente listo en minutos.</p>
+          <a class="btn btn-accent btn-lg" href="https://github.com/Rodildo/whatsapp-manager-bot-apk/releases/latest">
             Descargar para Android
           </a>
-          <a href="#como-funciona" class="btn btn-ghost btn-lg">Cómo funciona</a>
         </div>
-        <p class="hero-note">Gratis · Requiere Android · Versión Beta</p>
-      </div>
-    </section>
+      </section>
+    </main>
 
-    <section class="screenshots" id="screenshots">
-      <div class="section-inner">
-        <h2>Tu plan de vida, hecho plan de todos los días</h2>
-        <p class="section-lead">
-          Del test de vocación a la acción diaria: así se ven tus dos pantallas principales dentro de la app.
-        </p>
-        <div class="phones">
-          <figure class="phone-card">
-            <div class="phone-frame">
-              <img src="assets/screenshots/blueprint.jpg" alt="Pantalla Mi Plan Maestro de Jarvis Planeador, mostrando la visión de vida y las metas del área de salud física y mental" loading="lazy" />
-            </div>
-            <figcaption>
-              <strong>Mi Plan Maestro</strong>
-              <span>Tu visión de vida y tus metas concretas, por área — generadas a partir de tu test de 50 preguntas.</span>
-            </figcaption>
-          </figure>
-          <figure class="phone-card">
-            <div class="phone-frame">
-              <img src="assets/screenshots/daily-plan.jpg" alt="Pantalla del plan diario de Jarvis Planeador, mostrando tareas del bloque Al final del día ligadas a las metas del usuario" loading="lazy" />
-            </div>
-            <figcaption>
-              <strong>Tu plan de cada día</strong>
-              <span>Tareas concretas al levantarte, durante el día y al final del día — todas alineadas a tu plan de vida.</span>
-            </figcaption>
-          </figure>
-        </div>
+    <footer class="site-footer">
+      <div class="container">
+        <span class="footer-note">© 2026 ChattFlow. Todos los derechos reservados.</span>
+        <nav class="footer-links">
+          <a href="chatflow-privacidad.html">Privacidad</a>
+          <a href="chatflow-privacidad.html#terminos">Términos</a>
+          <a href="https://github.com/Rodildo/whatsapp-manager-bot-apk/releases/latest">Descargar</a>
+        </nav>
       </div>
-    </section>
+    </footer>
+  </div>
 
-    <section class="how-it-works" id="como-funciona">
-      <div class="section-inner">
-        <h2>Cómo funciona</h2>
-        <div class="steps">
-          <div class="step">
-            <span class="step-number">1</span>
-            <h3>Haz tu test de vida</h3>
-            <p>50 preguntas sobre 5 áreas: salud, carrera y finanzas, relaciones, crecimiento personal y propósito.</p>
-          </div>
-          <div class="step">
-            <span class="step-number">2</span>
-            <h3>Recibe tu Life Blueprint</h3>
-            <p>Tu visión de vida y entre 2 y 4 metas concretas por área, listas para perseguir.</p>
-          </div>
-          <div class="step">
-            <span class="step-number">3</span>
-            <h3>Reporta tu energía</h3>
-            <p>Cada mañana dices cómo estás, del 1 al 5. La energía varía, y tu plan se adapta a eso.</p>
-          </div>
-          <div class="step">
-            <span class="step-number">4</span>
-            <h3>Sigue tu plan diario</h3>
-            <p>Tareas al levantarte, durante el día y al final del día, todas ligadas a tus metas reales.</p>
-          </div>
-        </div>
-      </div>
-    </section>
+  <div class="bundle-divider">
+    <span>Otro proyecto de Kinetiqsystem</span>
+    <a href="#jarvis-top">Jarvis Planeador ↓</a>
+  </div>
 
-    <section class="cta-final" id="descargar">
-      <div class="section-inner cta-final-inner">
-        <h2>Deja de solo planear. Empieza a vivirlo.</h2>
-        <p>Descarga Jarvis Planeador y haz tu primer test de vida hoy mismo.</p>
-        <a href="https://github.com/Rodildo/jarvis-planeador/releases/latest/download/jarvis-planeador.apk" class="btn btn-primary btn-lg">
-          <svg class="icon-android" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85-.29-.15-.65-.06-.83.22l-1.88 3.24a11.463 11.463 0 00-8.94 0L5.65 5.67c-.19-.29-.58-.38-.87-.2-.28.18-.37.54-.22.83L6.4 9.48C3.3 11.25 1.28 14.44 1 18h22c-.28-3.56-2.3-6.75-5.4-8.52zM7 15.25a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5zm10 0a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5z"></path></svg>
-          Descargar APK
-        </a>
-        <p class="hero-note">Instálalo directamente en tu teléfono Android (fuera de Google Play, versión Beta).</p>
-      </div>
-    </section>
-  </main>
-
-  <footer class="footer">
-    <div class="footer-inner">
-      <div class="footer-brand">
-        <img src="assets/logo.png" alt="Jarvis Planeador" class="brand-logo" />
-        <span>Jarvis Planeador</span>
-      </div>
-      <nav class="footer-links">
-        <a href="privacidad.html">Política de Privacidad y Términos de Uso</a>
-      </nav>
-      <p class="footer-copy">© 2026 Kinetiqsystem. Todos los derechos reservados.</p>
+  <div id="jarvis">
+    <div class="bg-decor" aria-hidden="true">
+      <div class="orb orb-cyan"></div>
+      <div class="orb orb-pink"></div>
+      <div class="orb orb-gold"></div>
+      <div class="bg-grid"></div>
+      <div class="stars" id="stars"></div>
     </div>
-  </footer>
 
+    <header class="nav">
+      <div class="nav-inner">
+        <a href="#jarvis-top" class="brand">
+          <img src="assets/logo.png" alt="Jarvis Planeador" class="brand-logo" />
+          <span class="brand-name">JARVIS PLANEADOR<span class="beta-tag">Beta</span></span>
+        </a>
+        <a href="#descargar" class="btn btn-primary btn-nav">Descargar</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero" id="jarvis-top">
+        <div class="hero-inner">
+          <span class="pill">Test de vocación y estilo de vida · Android</span>
+          <h1>Descubre hacia dónde vas.<br>Vive cada día para llegar.</h1>
+          <p class="hero-lead">
+            Jarvis Planeador es tu test de vocación y estilo de vida: respondes un brief de 50 preguntas,
+            descubres tu <strong>Life Blueprint</strong> (tu visión de vida y tus metas reales), y cada mañana
+            recibes un plan de tareas diseñado para acercarte a lo que quieres — adaptado a la energía que
+            tengas ese día, porque no todos los días son iguales.
+          </p>
+          <div class="hero-ctas">
+            <a href="#descargar" class="btn btn-primary btn-lg">
+              <svg class="icon-android" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85-.29-.15-.65-.06-.83.22l-1.88 3.24a11.463 11.463 0 00-8.94 0L5.65 5.67c-.19-.29-.58-.38-.87-.2-.28.18-.37.54-.22.83L6.4 9.48C3.3 11.25 1.28 14.44 1 18h22c-.28-3.56-2.3-6.75-5.4-8.52zM7 15.25a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5zm10 0a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5z"></path></svg>
+              Descargar para Android
+            </a>
+            <a href="#jarvis-como-funciona" class="btn btn-ghost btn-lg">Cómo funciona</a>
+          </div>
+          <p class="hero-note">Gratis · Requiere Android · Versión Beta</p>
+        </div>
+      </section>
+
+      <section class="screenshots" id="screenshots">
+        <div class="section-inner">
+          <h2>Tu plan de vida, hecho plan de todos los días</h2>
+          <p class="section-lead">
+            Del test de vocación a la acción diaria: así se ven tus dos pantallas principales dentro de la app.
+          </p>
+          <div class="phones">
+            <figure class="phone-card">
+              <div class="phone-frame">
+                <img src="assets/screenshots/blueprint.jpg" alt="Pantalla Mi Plan Maestro de Jarvis Planeador, mostrando la visión de vida y las metas del área de salud física y mental" loading="lazy" />
+              </div>
+              <figcaption>
+                <strong>Mi Plan Maestro</strong>
+                <span>Tu visión de vida y tus metas concretas, por área — generadas a partir de tu test de 50 preguntas.</span>
+              </figcaption>
+            </figure>
+            <figure class="phone-card">
+              <div class="phone-frame">
+                <img src="assets/screenshots/daily-plan.jpg" alt="Pantalla del plan diario de Jarvis Planeador, mostrando tareas del bloque Al final del día ligadas a las metas del usuario" loading="lazy" />
+              </div>
+              <figcaption>
+                <strong>Tu plan de cada día</strong>
+                <span>Tareas concretas al levantarte, durante el día y al final del día — todas alineadas a tu plan de vida.</span>
+              </figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="how-it-works" id="jarvis-como-funciona">
+        <div class="section-inner">
+          <h2>Cómo funciona</h2>
+          <div class="steps">
+            <div class="step">
+              <span class="step-number">1</span>
+              <h3>Haz tu test de vida</h3>
+              <p>50 preguntas sobre 5 áreas: salud, carrera y finanzas, relaciones, crecimiento personal y propósito.</p>
+            </div>
+            <div class="step">
+              <span class="step-number">2</span>
+              <h3>Recibe tu Life Blueprint</h3>
+              <p>Tu visión de vida y entre 2 y 4 metas concretas por área, listas para perseguir.</p>
+            </div>
+            <div class="step">
+              <span class="step-number">3</span>
+              <h3>Reporta tu energía</h3>
+              <p>Cada mañana dices cómo estás, del 1 al 5. La energía varía, y tu plan se adapta a eso.</p>
+            </div>
+            <div class="step">
+              <span class="step-number">4</span>
+              <h3>Sigue tu plan diario</h3>
+              <p>Tareas al levantarte, durante el día y al final del día, todas ligadas a tus metas reales.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="cta-final" id="descargar">
+        <div class="section-inner cta-final-inner">
+          <h2>Deja de solo planear. Empieza a vivirlo.</h2>
+          <p>Descarga Jarvis Planeador y haz tu primer test de vida hoy mismo.</p>
+          <a href="https://github.com/Rodildo/jarvis-planeador/releases/latest/download/jarvis-planeador.apk" class="btn btn-primary btn-lg">
+            <svg class="icon-android" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85-.29-.15-.65-.06-.83.22l-1.88 3.24a11.463 11.463 0 00-8.94 0L5.65 5.67c-.19-.29-.58-.38-.87-.2-.28.18-.37.54-.22.83L6.4 9.48C3.3 11.25 1.28 14.44 1 18h22c-.28-3.56-2.3-6.75-5.4-8.52zM7 15.25a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5zm10 0a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5z"></path></svg>
+            Descargar APK
+          </a>
+          <p class="hero-note">Instálalo directamente en tu teléfono Android (fuera de Google Play, versión Beta).</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <img src="assets/logo.png" alt="Jarvis Planeador" class="brand-logo" />
+          <span>Jarvis Planeador</span>
+        </div>
+        <nav class="footer-links">
+          <a href="privacidad.html">Política de Privacidad y Términos de Uso</a>
+        </nav>
+        <p class="footer-copy">© 2026 Kinetiqsystem. Todos los derechos reservados.</p>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    const navToggle = document.getElementById('nav-toggle');
+    const siteNav = document.getElementById('site-nav');
+    navToggle.addEventListener('click', () => {
+      const isOpen = siteNav.classList.toggle('open');
+      navToggle.setAttribute('aria-expanded', String(isOpen));
+    });
+    siteNav.querySelectorAll('a').forEach((link) => {
+      link.addEventListener('click', () => {
+        siteNav.classList.remove('open');
+        navToggle.setAttribute('aria-expanded', 'false');
+      });
+    });
+  </script>
   <script src="js/background.js" defer></script>
 </body>
 </html>
