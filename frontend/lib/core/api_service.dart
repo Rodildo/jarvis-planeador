@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ApiService {
   static const String baseUrl = String.fromEnvironment(
     'JARVIS_API_URL',
-    defaultValue: 'https://app-jarvisplanner.hzedxy.easypanel.host/api',
+    defaultValue: 'https://jarvis.2-25-120-253.sslip.io/api',
   );
   static const String _tokenPrefsKey = 'auth_token';
   static const String _firstNamePrefsKey = 'user_first_name';
