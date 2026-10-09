@@ -15,7 +15,7 @@ Punto de entrada rápido: qué es esto, dónde está todo, y las reglas de traba
 | Descarga del APK (siempre la última versión publicada) | https://github.com/Rodildo/jarvis-planeador/releases/latest/download/jarvis-planeador.apk |
 | Release de GitHub donde vive ese APK | https://github.com/Rodildo/jarvis-planeador/releases/tag/v1.0.0-beta |
 | Repositorio de la página web (GitHub, extraído de `website/` con `git subtree`) | https://github.com/Rodildo/webjotaelebundle |
-| Página web (landing + descarga + política de privacidad) | https://www.jotaelebundle.com — código fuente vive en [`website/`](website/) de este repo, se publica en el repo de arriba y se sirve con **GitHub Pages**. Detalle técnico y SEO en [docs/reference/08-website.md](docs/reference/08-website.md); pasos operativos de publicación en [website/README.md](website/README.md). |
+| Página web (sitio de Total System: servicios, apps, descargas y privacidad) | https://www.jotaelebundle.com — código fuente vive en [`website/`](website/) de este repo, se publica en el repo de arriba y se sirve con **GitHub Pages**. Detalle técnico y SEO en [docs/reference/08-website.md](docs/reference/08-website.md); pasos operativos de publicación en [website/README.md](website/README.md). |
 
 ## Reglas de trabajo acordadas con el usuario
 
@@ -31,6 +31,7 @@ Estas reglas están pre-autorizadas — no hay que pedir permiso cada vez que ap
 
 ## Últimas actualizaciones (más reciente primero)
 
+- **2026-10-09** — **Rediseño completo de la web (`website/`) como sitio de Total System**, con el look de los flyers de la marca (negro-ciruela, magenta, coral y crema). La home lista los 8 servicios de los flyers (chatbot de WhatsApp, facturación electrónica SENIAT, MedicPro, AcademiaPro, restaurantes, gimnasios, préstamos y cobranza, software a medida) más un FAQ; ChattFlow y Jarvis Planeador pasan a tener cada uno su propia página. SEO técnico completo (títulos/descripciones únicos, Open Graph 1200×630, JSON-LD de organización, servicios, FAQ y apps, sitemap de 5 páginas, 404). **Todo contacto del sitio va por ahora al correo `jorgecastilloowner@jotaelebundle.com`** (orden del usuario): los botones son `mailto:` y los flyers del sitio están recortados sin su barra inferior, que traía impreso el WhatsApp y www.totalsystem.com. Se instalaron los skills de SEO `seo-audit` y `seo`. Pendientes: decidir el dominio final (totalsystem.com vs jotaelebundle.com), los textos legales de las apps aún nombran a Kinetiqsystem, y Google Search Console. Detalle en [docs/reference/08-website.md](docs/reference/08-website.md) y [06-decisions.md](docs/reference/06-decisions.md). *(web, publicada con `git subtree push`)*
 - **2026-09-27** — Al crear una cuenta, ahora se muestra brevemente "¡Cuenta creada con éxito!" antes de pasar al brief (antes no había ninguna confirmación visible). En el brief, enviar una pregunta de texto en blanco ahora funciona igual que "Saltar pregunta" (antes no hacía nada) — el botón de saltar ya existía para los 3 tipos de pregunta desde antes. Detalle en [docs/reference/06-decisions.md](docs/reference/06-decisions.md). *(frontend, pendiente compilar/probar)*
 - **2026-09-27** — Corregida la pantalla que se quedaba atascada en "No pude confirmar tu plan de hoy" con "Reintentar" sin efecto: la app confundía "el servidor confirmó que hoy no hay nada" con "no hay conexión" y aplicaba el límite de 2 veces/8h en ambos casos. Ahora, si el servidor confirma que no hay plan, pide la energía directo. Detalle en [docs/reference/06-decisions.md](docs/reference/06-decisions.md). *(frontend, pendiente compilar/probar)*
 - **2026-09-27** — Notificaciones con alarma exacta (`exactAllowWhileIdle` + permisos `SCHEDULE_EXACT_ALARM`/`POST_NOTIFICATIONS`), con respaldo automático a alarma inexacta si el sistema no concede el permiso de alarmas exactas (Android 14 lo niega por defecto), para que nunca dejen de agendarse. Ver [docs/reference/03-frontend.md](docs/reference/03-frontend.md). *(frontend, pendiente compilar/probar)*
@@ -67,7 +68,7 @@ Para el detalle completo y el porqué de cada decisión, ver [docs/reference/06-
 ```
 /backend         — API Express + SQLite + integración con OpenRouter (ver docs/reference/02-backend.md)
 /frontend        — App Flutter/Android (ver docs/reference/03-frontend.md)
-/website         — Landing estática (descarga del APK + política de privacidad), no publicada aún
+/website         — Sitio estático de Total System (servicios, páginas de ChattFlow y Jarvis, privacidad), publicado con GitHub Pages en www.jotaelebundle.com
 /docs/reference  — Documentación técnica viva (mantener actualizada en cada cambio relevante)
 AGENTS.md        — Reglas de compilación (regla dura: nunca compilar en segundo plano)
 ```

@@ -1,25 +1,40 @@
-# Sitio web de Jarvis Planeador
+# Sitio web de Total System
 
-Landing page estática (HTML + CSS puro, sin build ni dependencias) para descargar el APK de Jarvis Planeador.
+Sitio estático (HTML + CSS + un poco de JS, sin build ni dependencias) de **Total System**: servicios de software (chatbot de WhatsApp, facturación electrónica, sistemas por industria, software a medida) y las dos apps Android, ChattFlow y Jarvis Planeador.
 
 ```
 website/
-  index.html          — landing principal
-  privacidad.html      — Política de Privacidad y Términos (mismo texto que /legal dentro de la app)
-  css/styles.css
-  CNAME                — dominio personalizado para GitHub Pages (www.jotaelebundle.com)
-  robots.txt           — permite indexar todo, apunta al sitemap
-  sitemap.xml           — las dos páginas del sitio, para Google Search Console
+  index.html                 — home: hero, los 8 servicios de los flyers, apps, proceso, FAQ y contacto
+  chattflow.html             — página propia de ChattFlow (APK, planes, cómo funciona)
+  jarvis-planeador.html      — página propia de Jarvis Planeador (APK, capturas, cómo funciona)
+  privacidad.html            — Privacidad y Términos de Jarvis Planeador
+  chatflow-privacidad.html   — Privacidad y Términos de ChattFlow (borrador, tiene campos [pendiente])
+  404.html                   — página de error con la marca (GitHub Pages la sirve sola)
+  css/total.css              — única hoja de estilos: tokens de marca + todos los componentes
+  js/site.js                 — menú móvil (la página funciona completa sin JS)
+  fonts/                     — Outfit y Manrope autohospedadas (woff2, subset latin)
   assets/
-    logo.png                    — ícono de la app (copiado de frontend/assets/icon/app_icon.png)
-    screenshots/
-      blueprint.jpg              — captura de "Mi Plan Maestro"
-      daily-plan.jpg              — captura del plan diario (bloque "Al final del día")
+    servicios/               — los flyers de la marca, sin la barra de contacto (ver abajo); cada uno en 2 tamaños (-480.jpg y completo)
+    screenshots/             — capturas reales de Jarvis Planeador
+    og-total-system.png      — imagen 1200x630 para compartir el link
+    favicon-48.png, apple-touch-icon.png, logo-total-system-512.png, logo.png (ícono de Jarvis)
+  CNAME, robots.txt, sitemap.xml, Dockerfile, .dockerignore
+  PRODUCT.md                 — contexto de producto para el skill de diseño (no es parte del sitio)
 ```
 
-## Activar el botón de descarga
+## Diseño
 
-El botón "Descargar APK" apunta a:
+Tomado de los flyers de Total System: fondo negro-ciruela (`--ink`), magenta (`--pink`), coral (`--coral`) y una variante crema (`--cream`), con la barra magenta de cierre. Los tokens están al inicio de `css/total.css`. Tipografías: Outfit (títulos) y Manrope (texto), servidas desde `fonts/`. Las secciones alternan oscuro y crema.
+
+## Contacto (por ahora, solo correo)
+
+Todos los botones de contacto son enlaces `mailto:` a **jorgecastilloowner@jotaelebundle.com**, con asunto y mensaje prellenados según el servicio. Es una decisión temporal: los flyers traen impreso el WhatsApp +58 422 330 0722 y el sitio www.totalsystem.com en su barra inferior, así que **las imágenes de `assets/servicios/` están recortadas justo encima de esa barra** para no mostrar un contacto que hoy no es el oficial. Los originales completos no están en el repo; para volver a WhatsApp hay que usar los flyers originales y cambiar los `mailto:` por `https://wa.me/584223300722`.
+
+Para cambiar el correo: buscar y reemplazar `jorgecastilloowner@jotaelebundle.com` en todos los `.html` (también aparece en el JSON-LD de `index.html`).
+
+## Activar los botones de descarga
+
+Las páginas enlazan a dos APK en GitHub Releases: `chattflow.apk` (repo `Rodildo/whatsapp-manager-bot-apk`) y `jarvis-planeador.apk` (repo `Rodildo/jarvis-planeador`). El botón "Descargar APK" de Jarvis apunta a:
 ```
 https://github.com/Rodildo/jarvis-planeador/releases/latest/download/jarvis-planeador.apk
 ```
@@ -33,7 +48,7 @@ Esa URL de GitHub **siempre sirve el asset con ese nombre exacto del release má
 
 Cada vez que saques una versión nueva, solo repite los pasos 1-4 con un release nuevo — el link de la landing no cambia.
 
-**Alternativa** si no quieres usar GitHub Releases: sube el `.apk` a `website/assets/jarvis-planeador.apk` y cambia el `href` de los dos botones de descarga en `index.html` a `assets/jarvis-planeador.apk`. Más simple, pero el archivo queda versionado en git (pesa varias decenas de MB) y hay que reemplazarlo a mano en cada release.
+**Alternativa** si no quieres usar GitHub Releases: sube el `.apk` a `website/assets/jarvis-planeador.apk` y cambia el `href` de los botones de descarga en `jarvis-planeador.html` e `index.html` a `assets/jarvis-planeador.apk`. Más simple, pero el archivo queda versionado en git (pesa varias decenas de MB) y hay que reemplazarlo a mano en cada release.
 
 ## Publicar el sitio
 
@@ -56,18 +71,21 @@ EasyPanel ya no hace falta para este sitio — el static site en EasyPanel docum
 
 ## SEO
 
-Lo básico ya está puesto en `index.html` y `privacidad.html`:
+Hecho en el HTML de cada página:
 
-- `<link rel="canonical">` y `<meta name="robots" content="index, follow">` en ambas páginas.
-- Open Graph + Twitter Card (título, descripción, imagen) para que se vea bien al compartir el link.
-- Datos estructurados JSON-LD (`schema.org/MobileApplication`) en `index.html`, con nombre, categoría, `downloadUrl` al APK y autor.
-- `robots.txt` (permite todo, apunta al sitemap) y `sitemap.xml` con las dos URLs del sitio.
+- `<title>` (≤ 60 caracteres) y `<meta name="description">` (≤ 160) únicos, con las palabras clave del servicio.
+- `<link rel="canonical">`, `robots` con `max-image-preview:large`, `lang="es"`, `theme-color`.
+- Open Graph y Twitter Card (`summary_large_image`) con `assets/og-total-system.png` (1200x630).
+- Datos estructurados JSON-LD: `Organization` (con `OfferCatalog` de los 8 servicios), `WebSite` y `FAQPage` en `index.html`; `MobileApplication` y `BreadcrumbList` en cada página de app. El texto del FAQ del JSON-LD es idéntico al visible.
+- Un solo `<h1>` por página, jerarquía h2/h3 correcta, cada servicio es texto indexable (no solo imagen), `alt` descriptivo en cada flyer, `width`/`height` en todas las imágenes (sin saltos de layout), `loading="lazy"` bajo el primer pantallazo, `srcset` con versión de 480 px, precarga de fuentes y de la imagen principal.
+- `sitemap.xml` con las 5 páginas, `robots.txt` apuntando a él, `404.html` con `noindex`.
+- Accesibilidad: enlace para saltar al contenido, foco visible, contraste AA, `prefers-reduced-motion`, menú móvil con `aria-expanded`.
+
+**Dominio:** el sitio se sirve desde `www.jotaelebundle.com` (CNAME). Los flyers dicen `www.totalsystem.com`; si se conecta ese dominio hay que cambiarlo en `CNAME`, `robots.txt`, `sitemap.xml`, y en los `canonical`, `og:url`, `og:image` y JSON-LD de los `.html` (buscar y reemplazar `https://www.jotaelebundle.com`).
 
 **Pendiente (a petición del usuario, para una sesión futura):** verificar la propiedad del dominio en **Google Search Console** y enviar el `sitemap.xml` ahí para que Google empiece a indexar el sitio. Suele pedir uno de estos dos métodos:
 - Subir un archivo HTML de verificación a la raíz del sitio (a `website/`, y volver a publicar con `git subtree push`), o
 - Agregar un registro TXT en el DNS de `jotaelebundle.com` en IONOS.
-
-Si más adelante se quiere mejorar el posicionamiento todavía más: la imagen usada en Open Graph (`assets/logo.png`, 246×246) es cuadrada — redes como Facebook/WhatsApp prefieren una imagen 1200×630 para la vista previa al compartir el link; no es bloqueante, solo una mejora cosmética futura.
 
 ## Capturas de pantalla
 
