@@ -4,7 +4,8 @@ Ubicación: `website/` (dentro del repo principal). HTML/CSS/JS puro, sin build,
 
 ```
 website/
-  index.html                 — home: hero, 8 servicios, apps, proceso, FAQ y contacto
+  index.html                 — home: hero, 9 servicios, bloque que lleva al catálogo, apps, proceso, FAQ y contacto
+  sistemas.html              — catálogo: más de 30 sistemas en 9 categorías, cada uno abre un correo prellenado
   chattflow.html             — página de ChattFlow (APK, funciones, planes, cómo funciona)
   jarvis-planeador.html      — página de Jarvis Planeador (APK, capturas, cómo funciona)
   privacidad.html            — Privacidad y Términos de Jarvis (mismo texto que /legal dentro de la app)
@@ -14,7 +15,7 @@ website/
   js/site.js                 — menú móvil (la página funciona completa sin JS)
   fonts/                     — Outfit y Manrope autohospedadas (woff2, subset latin)
   assets/
-    servicios/               — los 8 flyers de la marca, recortados sin la barra de contacto, en dos tamaños (-480.jpg y completo)
+    servicios/               — los 9 flyers de la marca, recortados sin la barra de contacto, en dos tamaños (-480.jpg y completo)
     screenshots/             — capturas reales de Jarvis (blueprint.jpg, daily-plan.jpg)
     og-total-system.png      — imagen 1200×630 para compartir el link
     favicon-48.png, apple-touch-icon.png, logo-total-system-512.png
@@ -25,7 +26,8 @@ website/
 
 ## Contenido de las páginas
 
-- **`index.html`**: hero ("Tu negocio completo en un solo sistema") con un abanico de tres flyers; los 8 servicios tomados de los flyers (chatbot de WhatsApp, facturación electrónica SENIAT, MedicPro, AcademiaPro, restaurantes, gimnasios, préstamos y cobranza, software a medida); las dos apps; cómo empezar (4 pasos); FAQ de 8 preguntas; barra magenta de cierre. Cada servicio es texto indexable con su flyer como imagen (con `alt` descriptivo) y un botón de contacto con asunto prellenado.
+- **`index.html`**: hero ("Tu negocio completo en un solo sistema") con un abanico de tres flyers; los 9 servicios tomados de los flyers (chatbot de WhatsApp, facturación electrónica SENIAT, control de asistencia y fichaje, MedicPro, AcademiaPro, restaurantes, gimnasios, préstamos y cobranza, software a medida); las dos apps; cómo empezar (4 pasos); FAQ de 8 preguntas; barra magenta de cierre. Cada servicio es texto indexable con su flyer como imagen (con `alt` descriptivo) y un botón de contacto con asunto prellenado.
+- **`sistemas.html`** (catálogo): los 30 sistemas que el usuario listó, más el de control de asistencia y fichaje (en Servicios profesionales) (tienda POS, repostería, botica, óptica, ropa, mueblería, regalos, lavandería, gimnasio, escuelas deportivas, clínica/MedicPro, peluquerías y barberías, estética y belleza, hospedaje, hostales, alquiler de departamentos y de vehículos, catering, pizzería, colegio, AcademiaPro, inmobiliaria, SSOMA, transporte, mudanzas, cochera, préstamos y cobranza, facturación electrónica, gestión TI, avícolas) más restaurantes, chatbot y desarrollo a medida, en las 9 categorías del usuario (Retail, Modas y diseño, Deportes y fitness, Salud y bienestar, Turismo y hospitalidad, Educación y formación, Servicios profesionales, Tecnología y desarrollo, Manufactura y producción). Qué sistema va en qué categoría lo decidimos nosotros; solo hay nombres, sin listas de funciones inventadas. Cada ítem es un `mailto:` con el asunto "Demo: <sistema>". La home enlaza con un bloque "Y hay más de 30 sistemas listos" y la navegación y el pie tienen el enlace "Catálogo".
 - **`chattflow.html`** y **`jarvis-planeador.html`**: el contenido que antes vivía en secciones de la home (funciones, pasos, precios de ChattFlow: Básico "precio a confirmar" y Pro $35/mes; capturas y pasos de Jarvis), ahora cada una en su URL con título, descripción y datos estructurados propios.
 - **`privacidad.html`** y **`chatflow-privacidad.html`**: el texto legal no se tocó, solo el diseño y el correo de contacto. El de Jarvis sigue mantenido a mano en paralelo con `frontend/lib/legal_screen.dart`; ahora los dos tienen correos distintos (la app aún dice el anterior).
 - Botones de descarga: `https://github.com/Rodildo/jarvis-planeador/releases/latest/download/jarvis-planeador.apk` y `https://github.com/Rodildo/whatsapp-manager-bot-apk/releases/latest/download/chattflow.apk`. Esas URLs siempre sirven el asset con ese nombre del release más reciente, así que no hay que tocar el HTML al publicar una build nueva (ver [PROYECTO.md](../../PROYECTO.md), regla 4).
@@ -43,10 +45,11 @@ Tomado de los flyers de Total System: fondo negro-ciruela (`--ink`), magenta (`-
 En todas las páginas: `<title>` (≤ 60 caracteres) y descripción (≤ 160) únicos, `canonical`, `robots` con `max-image-preview:large`, `lang="es"`, `theme-color`, Open Graph y Twitter Card `summary_large_image` con `assets/og-total-system.png` (1200×630), un solo `<h1>`, jerarquía h2/h3.
 
 Datos estructurados JSON-LD:
-- `index.html`: `Organization` (nombre Total System, logo, `contactPoint` con el correo, `OfferCatalog` con los 8 servicios), `WebSite` y `FAQPage`. El texto del FAQ del JSON-LD es idéntico al visible.
+- `index.html`: `Organization` (nombre Total System, logo, `contactPoint` con el correo, `OfferCatalog` con los 9 servicios), `WebSite` y `FAQPage`. El texto del FAQ del JSON-LD es idéntico al visible.
+- `sistemas.html`: `CollectionPage` con un `ItemList` de 36 `Service` (cada uno con su categoría y un ancla `#categoria`) y `BreadcrumbList`.
 - `chattflow.html` y `jarvis-planeador.html`: `MobileApplication` (con `downloadUrl` al APK, y `offers`: ChattFlow Pro 35 USD, Jarvis gratis) y `BreadcrumbList`. El `publisher` es Total System.
 
-Rendimiento y rastreo: fuentes autohospedadas con `preload`, imagen principal con `preload` y `fetchpriority`, `width`/`height` en todas las imágenes, `srcset` con versión de 480 px, `loading="lazy"` bajo el primer pantallazo, `sitemap.xml` con las 5 páginas (`lastmod` 2026-10-09), `robots.txt` apuntando al sitemap, `404.html` con `noindex`. Accesibilidad: enlace para saltar al contenido, foco visible, menú móvil con `aria-expanded`.
+Rendimiento y rastreo: fuentes autohospedadas con `preload`, imagen principal con `preload` y `fetchpriority`, `width`/`height` en todas las imágenes, `srcset` con versión de 480 px, `loading="lazy"` bajo el primer pantallazo, `sitemap.xml` con las 6 páginas (`lastmod` 2026-10-09), `robots.txt` apuntando al sitemap, `404.html` con `noindex`. Accesibilidad: enlace para saltar al contenido, foco visible, menú móvil con `aria-expanded`.
 
 **Dominio:** el sitio se sirve desde `www.jotaelebundle.com`; los flyers dicen `www.totalsystem.com`. Es una decisión abierta. Si se conecta ese dominio hay que cambiarlo en `CNAME`, `robots.txt`, `sitemap.xml`, y en los `canonical`, `og:url`, `og:image` y JSON-LD de los `.html` (buscar y reemplazar `https://www.jotaelebundle.com`).
 

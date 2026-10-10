@@ -28,7 +28,7 @@ For now ALL contact goes to the email jorgecastilloowner@jotaelebundle.com (user
 
 ## Capabilities and Constraints
 
-Services taken only from the nine flyers:
+Services taken only from the ten flyers:
 - Chatbot for WhatsApp customer service: instant automatic replies, FAQ and catalog handling.
 - Electronic invoicing "conforme a la normativa del SENIAT": mobile app, send to customer, PDF download, history and reports, sales control.
 - MedicPro (health): clinical histories, appointments, prescriptions and billing.
@@ -37,6 +37,9 @@ Services taken only from the nine flyers:
 - Gyms, CrossFit, sports centers: shifts, memberships and charges, member status and plan expiry in real time.
 - Loans and collections: interest, payment dates and client portfolio for lenders.
 - Custom software ("Tú pones las reglas y nosotros ponemos el código").
+- Attendance control and clock-in system (flyer added 2026-10-09), for companies and SMEs: automates working-hours registration, shift control and hours calculation, adapted to the client's needs; multi-device clock-in, automatic calculations, PDF and Excel reports. The flyer carries no contact data.
+
+Catalog of ready-made systems, given by the user in a list on 2026-10-09 (30 items, grouped by the user's own 9 categories: Retail, Deportes-Fitness, Salud-Bienestar, Modas y diseño, Turismo-Hospitalidad, Educación-Formación, Servicios-Profesionales, Tecnología-Desarrollo, Manufactura-Producción): tienda POS, tienda de ropas POS, repostería POS, gimnasio, gestión TI, préstamos y cobranza, botica, clínica, hospedaje, colegio, AcademiaPro, avícolas, escuelas deportivas, lavandería de ropas, hostales, mueblería, alquiler de vehículos, mudanzas, catering, óptica, pizzería, tienda de regalos, inmobiliaria, SSOMA, TPV de peluquerías y barberías, alquiler de departamentos, cochera, transporte, TPV de centro de estética y salones de belleza, facturación electrónica. The assignment of each system to a category is ours (the user only gave the flat list and the category names), so it can be changed. The user also states that the company builds "cualquier sistema o app" on demand. No feature lists exist for these systems beyond their names: do not invent any.
 
 Apps: ChattFlow (Pro plan $35/month, Basic price still to be confirmed) and Jarvis Planeador (free, Beta). Prices for the Total System services are NOT defined and must not be invented.
 
@@ -48,7 +51,7 @@ Name "Total System", logo is a magenta circle with "ts" plus the wordmark "total
 
 ## Evidence on Hand
 
-Nine flyers (see `assets/servicios/`) with real product mockups, the Jarvis screenshots in `assets/screenshots/`. No testimonials, client logos, case studies, metrics or prices exist; none may be fabricated. UI values inside the flyers (e.g. "$420", "1.240 alumnos") are illustrative mockup data.
+Ten flyers (see `assets/servicios/`) with real product mockups, the Jarvis screenshots in `assets/screenshots/`. No testimonials, client logos, case studies, metrics or prices exist; none may be fabricated. UI values inside the flyers (e.g. "$420", "1.240 alumnos") are illustrative mockup data.
 
 ## Product Principles
 

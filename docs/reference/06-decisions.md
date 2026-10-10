@@ -295,3 +295,13 @@ El usuario pidió mejorar la web con el diseño y los colores de sus flyers de I
 - **Un solo CSS** (`css/total.css`) reemplaza los cuatro anteriores (el de Jarvis, el de ChattFlow y sus versiones "embed" con `@scope`), y se eliminó el campo de estrellas de `js/background.js`. Fuentes Outfit y Manrope autohospedadas en vez de Google Fonts, para evitar un pedido a un tercero.
 - **Revisión:** capturas en Chrome a 1440 px y 390 px, detector de diseño de `impeccable` (corregidos contraste del hover, sombras de color e interlineado), y un script que comprueba títulos, descripciones, H1, JSON-LD, enlaces, anclas e imágenes en todas las páginas.
 - **Pendientes que quedan:** dominio final, textos legales de las apps que aún nombran a Kinetiqsystem como desarrollador, y Google Search Console.
+
+## Catálogo de más de 30 sistemas en la web (2026-10-09)
+
+El usuario pegó la lista de sistemas que ofrece (30 nombres: tienda POS, botica, hospedaje, colegio, SSOMA, etc.) con las 9 categorías de su catálogo, dijo que además hacen "cualquier sistema o app" a medida, y pidió agregarlo a la web "o algo así parecido". Decisiones:
+
+- **Página propia** (`sistemas.html`) en vez de alargar la home: la home ya era larga y el catálogo crecerá; la home solo tiene un bloque con las categorías y un botón. Una página dedicada también sirve para buscar cada nombre ("sistema para botica") con su `ItemList` en JSON-LD.
+- **Qué sistema va en qué categoría lo decidimos nosotros**: el usuario dio la lista plana y los nombres de las categorías. Las dudosas (botica y óptica en Retail por ser tiendas; peluquerías y estética en Salud y bienestar; restaurantes, pizzería y catering en Turismo y hospitalidad) se pueden mover cambiando el arreglo de datos y regenerando, o editando el HTML.
+- **Solo nombres, sin funciones inventadas**: para estos sistemas no hay flyers ni descripciones, así que cada ítem es solo su nombre más un botón que abre un correo con el asunto "Demo: <sistema>".
+- **Se agregan a la lista cuatro entradas que no estaban en el pegado** (restaurantes, chatbot de WhatsApp, desarrollo de software a medida y de apps a medida) y "Sistemas de producción a medida" para que la categoría Manufactura y producción no tenga un solo ítem; por eso se dice "más de 30".
+- El mensaje "cualquier sistema o app que imagines" reemplaza al anterior "software a medida" en la home, el FAQ y el JSON-LD.

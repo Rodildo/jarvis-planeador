@@ -4,7 +4,8 @@ Sitio estático (HTML + CSS + un poco de JS, sin build ni dependencias) de **Tot
 
 ```
 website/
-  index.html                 — home: hero, los 8 servicios de los flyers, apps, proceso, FAQ y contacto
+  index.html                 — home: hero, los 9 servicios de los flyers, bloque que lleva al catálogo, apps, proceso, FAQ y contacto
+  sistemas.html              — catálogo: más de 30 sistemas en 9 categorías; cada uno abre un correo prellenado
   chattflow.html             — página propia de ChattFlow (APK, planes, cómo funciona)
   jarvis-planeador.html      — página propia de Jarvis Planeador (APK, capturas, cómo funciona)
   privacidad.html            — Privacidad y Términos de Jarvis Planeador
@@ -76,9 +77,9 @@ Hecho en el HTML de cada página:
 - `<title>` (≤ 60 caracteres) y `<meta name="description">` (≤ 160) únicos, con las palabras clave del servicio.
 - `<link rel="canonical">`, `robots` con `max-image-preview:large`, `lang="es"`, `theme-color`.
 - Open Graph y Twitter Card (`summary_large_image`) con `assets/og-total-system.png` (1200x630).
-- Datos estructurados JSON-LD: `Organization` (con `OfferCatalog` de los 8 servicios), `WebSite` y `FAQPage` en `index.html`; `MobileApplication` y `BreadcrumbList` en cada página de app. El texto del FAQ del JSON-LD es idéntico al visible.
+- Datos estructurados JSON-LD: `Organization` (con `OfferCatalog` de los servicios principales y del catálogo), `WebSite` y `FAQPage` en `index.html`; `MobileApplication` y `BreadcrumbList` en cada página de app; `CollectionPage` + `ItemList` (36 entradas) y `BreadcrumbList` en `sistemas.html`. El texto del FAQ del JSON-LD es idéntico al visible.
 - Un solo `<h1>` por página, jerarquía h2/h3 correcta, cada servicio es texto indexable (no solo imagen), `alt` descriptivo en cada flyer, `width`/`height` en todas las imágenes (sin saltos de layout), `loading="lazy"` bajo el primer pantallazo, `srcset` con versión de 480 px, precarga de fuentes y de la imagen principal.
-- `sitemap.xml` con las 5 páginas, `robots.txt` apuntando a él, `404.html` con `noindex`.
+- `sitemap.xml` con las 6 páginas, `robots.txt` apuntando a él, `404.html` con `noindex`.
 - Accesibilidad: enlace para saltar al contenido, foco visible, contraste AA, `prefers-reduced-motion`, menú móvil con `aria-expanded`.
 
 **Dominio:** el sitio se sirve desde `www.jotaelebundle.com` (CNAME). Los flyers dicen `www.totalsystem.com`; si se conecta ese dominio hay que cambiarlo en `CNAME`, `robots.txt`, `sitemap.xml`, y en los `canonical`, `og:url`, `og:image` y JSON-LD de los `.html` (buscar y reemplazar `https://www.jotaelebundle.com`).
